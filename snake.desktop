@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Snake
+Comment=Juego de Snake
+Exec=./snake
+Path=/home/javapli/DESAROLLOS JAVAPLI/juego
+Icon=applications-games
+Terminal=false
+Categories=Game;

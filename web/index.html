@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Arcade</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="dashboard">
+    <div class="dashboard-header">
+      <h1>Game Arcade</h1>
+      <p>Selecciona un juego para jugar</p>
+    </div>
+    <div id="games-grid" class="games-grid"></div>
+  </div>
+
+  <div id="game-screen">
+    <div class="game-toolbar">
+      <button id="toolbar-back">← Menu</button>
+      <span class="game-title"></span>
+      <span class="game-score" id="toolbar-score">Score: 0</span>
+    </div>
+    <div class="game-canvas-container">
+      <canvas id="game-canvas" width="600" height="500"></canvas>
+    </div>
+  </div>
+
+  <script src="js/utils/audio.js"></script>
+  <script src="js/utils/storage.js"></script>
+  <script src="js/games/snake.js"></script>
+  <script src="js/games/tetris.js"></script>
+  <script src="js/games/pong.js"></script>
+  <script src="js/games/game2048.js"></script>
+  <script src="js/games/carreras.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
