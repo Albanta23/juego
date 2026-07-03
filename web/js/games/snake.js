@@ -14,6 +14,7 @@ class SnakeGame {
     this.state = 'start'; this.snake = null; this.food = null;
     this.bonusFood = null; this.powerups = []; this.activePowerups = [];
     this.obstacles = []; this.level = 1; this.fps = 10; this.lastMove = 0;
+    this.queuedDir = null;
     this.animSnake = this.createAnimSnake();
     this.boundKeyDown = this.onKeyDown.bind(this);
     this.rafId = null;
@@ -33,6 +34,7 @@ class SnakeGame {
 
   reset() {
     this.snake = { body: [{ x: Math.floor(this.cols / 2), y: Math.floor(this.rows / 2) }, { x: Math.floor(this.cols / 2) - 1, y: Math.floor(this.rows / 2) }], dir: { x: 1, y: 0 }, grow: false, invincible: 0 };
+    this.queuedDir = null;
     this.score = 0; this.combo = 0; this.level = 1; this.fps = 10;
     this.food = this.spawnFood(); this.bonusFood = null;
     this.powerups = []; this.activePowerups = []; this.obstacles = [];
@@ -44,6 +46,8 @@ class SnakeGame {
   spawnFood() {
     const occ = new Set(this.snake.body.map(p => `${p.x},${p.y}`));
     this.obstacles.forEach(o => occ.add(`${o.x},${o.y}`));
+    this.powerups.forEach(p => occ.add(`${p.x},${p.y}`));
+    if (this.bonusFood) occ.add(`${this.bonusFood.x},${this.bonusFood.y}`);
     let x, y, att = 0;
     do { x = Math.floor(Math.random() * this.cols); y = Math.floor(Math.random() * this.rows); att++; } while (occ.has(`${x},${y}`) && att < 200);
     return { x, y, type: ['normal','normal','normal','speed','poison'][Math.floor(Math.random() * 5)] };
@@ -52,6 +56,8 @@ class SnakeGame {
   spawnBonus() {
     const occ = new Set(this.snake.body.map(p => `${p.x},${p.y}`));
     if (this.food) occ.add(`${this.food.x},${this.food.y}`);
+    this.obstacles.forEach(o => occ.add(`${o.x},${o.y}`));
+    this.powerups.forEach(p => occ.add(`${p.x},${p.y}`));
     let x, y, att = 0;
     do { x = Math.floor(Math.random() * this.cols); y = Math.floor(Math.random() * this.rows); att++; } while (occ.has(`${x},${y}`) && att < 200);
     if (att < 200) this.bonusFood = { x, y, spawn: performance.now(), life: 5000 };
@@ -59,6 +65,9 @@ class SnakeGame {
 
   spawnPowerup() {
     const occ = new Set(this.snake.body.map(p => `${p.x},${p.y}`));
+    if (this.food) occ.add(`${this.food.x},${this.food.y}`);
+    if (this.bonusFood) occ.add(`${this.bonusFood.x},${this.bonusFood.y}`);
+    this.obstacles.forEach(o => occ.add(`${o.x},${o.y}`));
     let x, y, att = 0;
     do { x = 2 + Math.floor(Math.random() * (this.cols - 4)); y = 2 + Math.floor(Math.random() * (this.rows - 4)); att++; } while (occ.has(`${x},${y}`) && att < 200);
     if (att < 200) this.powerups.push({ x, y, type: ['speed','slow','shield','double'][Math.floor(Math.random() * 4)], spawn: performance.now() });
@@ -81,11 +90,13 @@ class SnakeGame {
     if (this.state === 'start') { if (e.key === 'Enter') { this.reset(); return; } }
     if (this.state === 'gameover') { if (e.key === 'r') { this.reset(); return; } if (e.key === 'Escape') { exitGame(); return; } }
     if (this.state !== 'playing') return;
-    const d = this.snake.dir;
-    if ((e.key === 'ArrowUp' || e.key === 'w') && d.y !== 1) { d.x = 0; d.y = -1; }
-    else if ((e.key === 'ArrowDown' || e.key === 's') && d.y !== -1) { d.x = 0; d.y = 1; }
-    else if ((e.key === 'ArrowLeft' || e.key === 'a') && d.x !== 1) { d.x = -1; d.y = 0; }
-    else if ((e.key === 'ArrowRight' || e.key === 'd') && d.x !== -1) { d.x = 1; d.y = 0; }
+    const d = this.queuedDir || this.snake.dir;
+    let next = null;
+    if ((e.key === 'ArrowUp' || e.key === 'w') && d.y !== 1) next = { x: 0, y: -1 };
+    else if ((e.key === 'ArrowDown' || e.key === 's') && d.y !== -1) next = { x: 0, y: 1 };
+    else if ((e.key === 'ArrowLeft' || e.key === 'a') && d.x !== 1) next = { x: -1, y: 0 };
+    else if ((e.key === 'ArrowRight' || e.key === 'd') && d.x !== -1) next = { x: 1, y: 0 };
+    if (next) this.queuedDir = next;
     if (e.key === 'Escape') exitGame();
   }
 
@@ -93,6 +104,10 @@ class SnakeGame {
   ty(c) { return this.boardY + c.y * this.cellSize; }
 
   moveSnake() {
+    if (this.queuedDir) {
+      this.snake.dir = this.queuedDir;
+      this.queuedDir = null;
+    }
     const h = this.snake.body[0];
     const nx = (h.x + this.snake.dir.x + this.cols) % this.cols;
     const ny = (h.y + this.snake.dir.y + this.rows) % this.rows;
@@ -129,7 +144,7 @@ class SnakeGame {
     if (ate) { this.score += this.getScoreMult(); this.combo++; this.comboTimer = performance.now(); this.flashAlpha = 50; this.particles.emit(cx, cy, 12, ['#00ffff','#00ff88','#fff']); }
     else if (ateBonus) { this.score += 3 * this.getScoreMult(); this.combo++; this.comboTimer = performance.now(); this.flashAlpha = 80; this.particles.emit(cx, cy, 20, ['#ffff00','#ff8800','#fff']); }
     else if (ateSpeed) { this.score += this.getScoreMult(); this.snake.invincible = performance.now() + 2000; this.flashAlpha = 40; this.particles.emit(cx, cy, 15, ['#ff8800','#ffff00','#fff']); window.audioManager.playBoost(); }
-    else if (atePoison) { this.score = Math.max(0, this.score - 2); this.snake.body.splice(-2, 2); this.flashAlpha = 30; this.particles.emit(cx, cy, 12, ['#ff00ff','#aa00ff','#fff']); window.audioManager.playPoison(); this.combo = 0; }
+    else if (atePoison) { this.score = Math.max(0, this.score - 2); if (this.snake.body.length > 3) this.snake.body.splice(-2, 2); this.flashAlpha = 30; this.particles.emit(cx, cy, 12, ['#ff00ff','#aa00ff','#fff']); window.audioManager.playPoison(); this.combo = 0; }
 
     if (performance.now() - this.comboTimer > 2000) this.combo = 0;
     if (this.combo > 1) window.audioManager.playCombo(this.combo);
@@ -294,7 +309,7 @@ class SnakeGame {
 
     // HUD
     VFX.panel(c, 10, 10, 200, 80, { bg: 'rgba(0,0,20,0.7)', border: 'rgba(0,255,255,0.2)', radius: 8 });
-    VFX.drawLEDText(`SCORE: ${this.score}`, 110, 30, '#00ffff', 22);
+    VFX.drawLEDText(c, `SCORE: ${this.score}`, 110, 30, '#00ffff', 22);
     VFX.glowText(c, `HIGH: ${window.gameStorage.getHighScore('snake')}`, 20, 55, { font: '12px monospace', color: '#ffff00', align: 'left' });
     VFX.glowText(c, `LVL: ${this.level}`, 20, 75, { font: '12px monospace', color: '#ff00ff', align: 'left' });
 
@@ -302,7 +317,7 @@ class SnakeGame {
     if (this.combo > 1 && performance.now() - this.comboTimer < 2000) {
       const fade = Math.max(0, 1 - (performance.now() - this.comboTimer) / 2000);
       c.globalAlpha = fade;
-      VFX.drawLEDText(`COMBO x${this.combo}`, W / 2, this.boardY - 25, '#ffff00', 28 + this.combo * 2);
+      VFX.drawLEDText(c, `COMBO x${this.combo}`, W / 2, this.boardY - 25, '#ffff00', 28 + this.combo * 2);
       c.globalAlpha = 1;
     }
 
@@ -323,10 +338,10 @@ class SnakeGame {
     if (this.state === 'gameover') {
       c.fillStyle = 'rgba(10,0,21,0.8)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 220, H / 2 - 110, 440, 220, '#ff3366', 12, 2);
-      VFX.drawLEDText('GAME OVER', W / 2, H / 2 - 55, '#ff3366', 42);
-      VFX.drawLEDText(`SCORE: ${this.score}`, W / 2, H / 2 + 5, '#00ffff', 26);
+      VFX.drawLEDText(c, 'GAME OVER', W / 2, H / 2 - 55, '#ff3366', 42);
+      VFX.drawLEDText(c, `SCORE: ${this.score}`, W / 2, H / 2 + 5, '#00ffff', 26);
       const hi = window.gameStorage.getHighScore('snake');
-      if (this.score >= hi && this.score > 0) VFX.drawLEDText('NEW HIGH SCORE!', W / 2, H / 2 + 40, '#ffff00', 18);
+      if (this.score >= hi && this.score > 0) VFX.drawLEDText(c, 'NEW HIGH SCORE!', W / 2, H / 2 + 40, '#ffff00', 18);
       else VFX.glowText(c, `HIGH: ${hi}`, W / 2, H / 2 + 40, { font: '14px monospace', color: '#ffff00' });
       VFX.glowText(c, 'R = RESTART  |  ESC = MENU', W / 2, H / 2 + 75, { font: '12px monospace', color: '#666' });
     }
@@ -347,7 +362,7 @@ class SnakeGame {
       c.restore();
     });
 
-    VFX.drawLEDText('SNAKE', W / 2, H / 2 - 110, '#00ffff', 64);
+    VFX.drawLEDText(c, 'SNAKE', W / 2, H / 2 - 110, '#00ffff', 64);
     VFX.glowText(c, 'PRESS ENTER TO PLAY', W / 2, H / 2 - 40, { font: '18px monospace', color: '#ff00ff' });
     VFX.glowText(c, `HIGH SCORE: ${window.gameStorage.getHighScore('snake')}`, W / 2, H / 2 - 5, { font: '14px monospace', color: '#ffff00' });
     VFX.glowText(c, 'ARROWS / WASD: MOVE  |  ESC: MENU', W / 2, H - 40, { font: '12px monospace', color: '#555' });

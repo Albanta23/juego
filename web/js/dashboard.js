@@ -9,6 +9,31 @@ const GAMES = [
 
 let currentGame = null;
 let gameInstance = null;
+let pressedTouchKeys = new Set();
+let touchRepeatTimers = new Map();
+
+const TOUCH_LAYOUTS = {
+  snake: {
+    pad: [['↑', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
+    actions: [['START', 'Enter'], ['RETRY', 'r']]
+  },
+  tetris: {
+    pad: [['↻', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
+    actions: [['DROP', ' '], ['HOLD', 'c'], ['PAUSE', 'p']]
+  },
+  pong: {
+    pad: [['↑', 'ArrowUp', 'up'], ['↓', 'ArrowDown', 'down']],
+    actions: [['VS CPU', '1'], ['2P', '2'], ['PAUSE', 'p']]
+  },
+  game2048: {
+    pad: [['↑', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
+    actions: [['UNDO', 'u'], ['NEW', 'r']]
+  },
+  carreras: {
+    pad: [['↑', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
+    actions: [['START', 'Enter'], ['NITRO', 'n'], ['RETRY', 'r']]
+  }
+};
 
 function initDashboard() {
   const grid = document.getElementById('games-grid');
@@ -40,9 +65,12 @@ function launchGame(id) {
   document.getElementById('toolbar-back').onclick = exitGame;
 
   const canvas = document.getElementById('game-canvas');
-  // Use reasonable canvas size, not fullscreen
-  const maxW = Math.min(window.innerWidth - 40, 900);
-  const maxH = Math.min(window.innerHeight - 100, 600);
+  const touchControls = document.getElementById('touch-controls');
+  const isTouchViewport = window.matchMedia('(hover: none), (pointer: coarse), (max-width: 600px)').matches;
+  const controlsReserve = isTouchViewport ? Math.min(150, Math.max(112, window.innerHeight * 0.2)) : 0;
+  const toolbarReserve = isTouchViewport ? 58 : 78;
+  const maxW = Math.max(320, Math.min(window.innerWidth - (isTouchViewport ? 12 : 40), isTouchViewport ? 760 : 900));
+  const maxH = Math.max(320, Math.min(window.innerHeight - toolbarReserve - controlsReserve, isTouchViewport ? 680 : 600));
   canvas.width = maxW;
   canvas.height = maxH;
   canvas.style.width = maxW + 'px';
@@ -57,10 +85,13 @@ function launchGame(id) {
     case 'game2048': gameInstance = new Game2048(canvas); break;
     case 'carreras': gameInstance = new CarrerasGame(canvas); break;
   }
+  setupTouchControls(id);
   if (gameInstance) gameInstance.start();
 }
 
 function exitGame() {
+  releaseTouchKeys();
+  setupTouchControls(null);
   if (gameInstance) { gameInstance.destroy(); gameInstance = null; }
   document.getElementById('game-screen').classList.remove('active');
   document.getElementById('dashboard').style.display = 'block';
@@ -72,3 +103,81 @@ function updateScore(score) {
 }
 
 document.addEventListener('DOMContentLoaded', initDashboard);
+
+function setupTouchControls(gameId) {
+  const controls = document.getElementById('touch-controls');
+  if (!controls) return;
+  releaseTouchKeys();
+  controls.innerHTML = '';
+  const layout = TOUCH_LAYOUTS[gameId];
+  if (!layout) {
+    controls.classList.remove('active');
+    return;
+  }
+
+  const pad = document.createElement('div');
+  pad.className = 'touch-pad';
+  layout.pad.forEach(([label, key, cls]) => pad.appendChild(makeTouchButton(label, key, cls)));
+
+  const actions = document.createElement('div');
+  actions.className = 'touch-actions';
+  layout.actions.forEach(([label, key]) => actions.appendChild(makeTouchButton(label, key, 'wide')));
+
+  controls.appendChild(pad);
+  controls.appendChild(actions);
+  controls.classList.add('active');
+}
+
+function makeTouchButton(label, key, cls = '') {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `touch-btn ${cls}`;
+  btn.textContent = label;
+  btn.setAttribute('aria-label', label);
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    btn.setPointerCapture?.(e.pointerId);
+    btn.classList.add('is-pressed');
+    pressTouchKey(key);
+  });
+  const release = (e) => {
+    e.preventDefault();
+    btn.classList.remove('is-pressed');
+    releaseTouchKey(key);
+  };
+  btn.addEventListener('pointerup', release);
+  btn.addEventListener('pointercancel', release);
+  btn.addEventListener('pointerleave', release);
+  return btn;
+}
+
+function pressTouchKey(key) {
+  if (pressedTouchKeys.has(key)) return;
+  pressedTouchKeys.add(key);
+  dispatchGameKey('keydown', key);
+  if (shouldRepeatTouchKey(key)) {
+    touchRepeatTimers.set(key, setInterval(() => dispatchGameKey('keydown', key), 120));
+  }
+}
+
+function releaseTouchKey(key) {
+  if (!pressedTouchKeys.has(key)) return;
+  pressedTouchKeys.delete(key);
+  if (touchRepeatTimers.has(key)) {
+    clearInterval(touchRepeatTimers.get(key));
+    touchRepeatTimers.delete(key);
+  }
+  dispatchGameKey('keyup', key);
+}
+
+function releaseTouchKeys() {
+  [...pressedTouchKeys].forEach(key => releaseTouchKey(key));
+}
+
+function dispatchGameKey(type, key) {
+  document.dispatchEvent(new KeyboardEvent(type, { key, bubbles: true, cancelable: true }));
+}
+
+function shouldRepeatTouchKey(key) {
+  return currentGame === 'tetris' && ['ArrowLeft', 'ArrowRight', 'ArrowDown'].includes(key);
+}

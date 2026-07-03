@@ -21,6 +21,7 @@ body {
   color: var(--text);
   min-height: 100vh;
   overflow-x: hidden;
+  touch-action: manipulation;
 }
 
 /* DASHBOARD */
@@ -186,6 +187,7 @@ body {
   background: rgba(10, 0, 21, 0.8);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(0,255,255,0.1);
+  min-height: 64px;
 }
 
 .game-toolbar button {
@@ -228,19 +230,140 @@ body {
   justify-content: center;
   flex: 1;
   width: 100%;
+  min-height: 0;
+  padding: 10px;
 }
 
 canvas {
   display: block;
   max-width: 95vw;
-  max-height: calc(100vh - 70px);
+  max-height: calc(100dvh - 84px);
   border-radius: 8px;
   box-shadow: 0 0 2px var(--neon-cyan), 0 0 20px rgba(0,255,255,0.15), 0 0 60px rgba(0,255,255,0.05);
   border: 1px solid rgba(0,255,255,0.2);
+  touch-action: none;
+}
+
+.touch-controls {
+  display: none;
+  width: min(680px, 100%);
+  padding: 8px 14px 14px;
+  gap: 12px;
+  align-items: end;
+  justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+.touch-controls.active { display: flex; }
+
+.touch-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 54px);
+  grid-template-rows: repeat(3, 46px);
+  gap: 8px;
+}
+
+.touch-actions {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.touch-btn {
+  min-width: 54px;
+  height: 46px;
+  border: 1px solid rgba(0,255,255,0.32);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(0,255,255,0.16), rgba(0,255,255,0.04)),
+    rgba(4, 0, 18, 0.8);
+  color: #eaffff;
+  font: 700 0.9rem 'Share Tech Mono', monospace;
+  box-shadow: inset 0 0 14px rgba(0,255,255,0.08), 0 0 18px rgba(0,255,255,0.09);
+  text-shadow: 0 0 8px rgba(0,255,255,0.65);
+  touch-action: none;
+}
+
+.touch-btn:active,
+.touch-btn.is-pressed {
+  border-color: var(--neon-yellow);
+  color: var(--neon-yellow);
+  transform: translateY(1px) scale(0.98);
+  box-shadow: inset 0 0 18px rgba(255,255,0,0.16), 0 0 20px rgba(255,255,0,0.16);
+}
+
+.touch-btn.up { grid-column: 2; grid-row: 1; }
+.touch-btn.left { grid-column: 1; grid-row: 2; }
+.touch-btn.down { grid-column: 2; grid-row: 2; }
+.touch-btn.right { grid-column: 3; grid-row: 2; }
+.touch-btn.wide { min-width: 78px; padding: 0 14px; }
+
+@media (hover: hover) and (pointer: fine) {
+  .touch-controls.active { display: none; }
 }
 
 @media (max-width: 600px) {
   .dashboard-header h1 { font-size: 2rem; letter-spacing: 4px; }
   .games-grid { grid-template-columns: 1fr; }
   .game-card { padding: 20px; }
+  #dashboard { padding: 28px 14px; }
+  #game-screen { justify-content: flex-start; }
+  .game-toolbar {
+    min-height: 54px;
+    padding: 8px 10px;
+    gap: 8px;
+  }
+  .game-toolbar button {
+    padding: 8px 10px;
+    font-size: 0.82rem;
+  }
+  .game-toolbar .game-title {
+    font-size: 0.92rem;
+    letter-spacing: 1px;
+  }
+  .game-toolbar .game-score {
+    font-size: 0.82rem;
+    min-width: 88px;
+    text-align: right;
+  }
+  .game-canvas-container {
+    flex: 1 1 auto;
+    padding: 6px 6px 2px;
+  }
+  canvas {
+    max-width: calc(100vw - 12px);
+    max-height: calc(100dvh - 212px);
+  }
+  .touch-controls.active { display: flex; }
+  .touch-pad {
+    grid-template-columns: repeat(3, 48px);
+    grid-template-rows: repeat(3, 42px);
+    gap: 7px;
+  }
+  .touch-btn {
+    min-width: 48px;
+    height: 42px;
+    border-radius: 9px;
+    font-size: 0.8rem;
+  }
+  .touch-btn.wide { min-width: 68px; }
+}
+
+@media (max-width: 420px) {
+  .touch-controls { padding-inline: 8px; gap: 8px; }
+  .touch-actions { max-width: 146px; gap: 8px; }
+  .touch-pad {
+    grid-template-columns: repeat(3, 43px);
+    grid-template-rows: repeat(3, 39px);
+    gap: 6px;
+  }
+  .touch-btn {
+    min-width: 43px;
+    height: 39px;
+  }
+  .touch-btn.wide { min-width: 63px; }
 }

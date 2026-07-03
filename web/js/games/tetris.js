@@ -10,6 +10,7 @@ class TetrisGame {
     this.running = false; this.frame = 0;
     this.board = []; this.score = 0; this.level = 1; this.lines = 0;
     this.piece = null; this.nextPiece = null; this.holdPiece = null;
+    this.bag = []; this.queue = []; this.combo = -1; this.backToBack = false;
     this.canHold = true; this.gameOver = false; this.paused = false;
     this.dropTimer = 0; this.dropInterval = 500; this.lastTime = 0;
     this.lockDelay = 500; this.lockTimer = 0;
@@ -38,21 +39,33 @@ class TetrisGame {
     this.board = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
     this.score = 0; this.level = 1; this.lines = 0;
     this.piece = null; this.nextPiece = null; this.holdPiece = null;
+    this.bag = []; this.queue = []; this.combo = -1; this.backToBack = false;
     this.canHold = true; this.gameOver = false; this.paused = false;
     this.dropInterval = 500; this.clearingRows = []; this.clearAnim = 0;
     this.particles = new VFX.particles();
-    this.spawnPiece(); this.nextPiece = this.randomPiece();
+    while (this.queue.length < 5) this.queue.push(this.randomPiece());
+    this.spawnPiece();
     window.updateScore(0);
   }
 
   randomPiece() {
-    const keys = Object.keys(this.PIECES); const key = keys[Math.floor(Math.random() * keys.length)];
+    if (this.bag.length === 0) {
+      this.bag = Object.keys(this.PIECES);
+      for (let i = this.bag.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
+      }
+    }
+    const key = this.bag.pop();
     const p = this.PIECES[key];
     return { shape: p.shape.map(r => [...r]), color: p.color, key };
   }
 
   spawnPiece() {
-    this.piece = this.nextPiece || this.randomPiece(); this.nextPiece = this.randomPiece();
+    while (this.queue.length < 5) this.queue.push(this.randomPiece());
+    this.piece = this.queue.shift();
+    this.nextPiece = this.queue[0];
+    while (this.queue.length < 5) this.queue.push(this.randomPiece());
     this.piece.x = Math.floor((this.cols - this.piece.shape[0].length) / 2);
     this.piece.y = 0; this.canHold = true; this.lockTimer = 0;
     if (this.collides(this.piece.shape, this.piece.x, this.piece.y)) {
@@ -83,10 +96,16 @@ class TetrisGame {
   clearLines() {
     const full = [];
     for (let r = 0; r < this.rows; r++) if (this.board[r].every(c => c !== null)) full.push(r);
-    if (full.length === 0) { this.spawnPiece(); return; }
+    if (full.length === 0) { this.combo = -1; this.spawnPiece(); return; }
     this.clearingRows = full; this.clearAnim = 12;
     const pts = [0, 100, 300, 500, 800];
-    this.score += (pts[full.length] || 800) * this.level;
+    const isTetris = full.length >= 4;
+    this.combo++;
+    let lineScore = (pts[full.length] || 800) * this.level;
+    if (this.combo > 0) lineScore += this.combo * 50 * this.level;
+    if (isTetris && this.backToBack) lineScore = Math.floor(lineScore * 1.5);
+    this.score += lineScore;
+    if (full.length > 0) this.backToBack = isTetris;
     this.lines += full.length; this.level = Math.min(1 + Math.floor(this.lines / 10), 15);
     this.dropInterval = Math.max(50, 500 - (this.level - 1) * 30);
     window.updateScore(this.score); window.audioManager.playLineClear();
@@ -102,7 +121,7 @@ class TetrisGame {
   hold() {
     if (!this.canHold) return; this.canHold = false;
     if (this.holdPiece) { const tmp = this.holdPiece; this.holdPiece = { ...this.piece, shape: this.piece.shape.map(r => [...r]) }; this.piece = { ...tmp, shape: tmp.shape.map(r => [...r]) }; this.piece.x = Math.floor((this.cols - this.piece.shape[0].length) / 2); this.piece.y = 0; }
-    else { this.holdPiece = { ...this.piece, shape: this.piece.shape.map(r => [...r]) }; this.spawnPiece(); }
+    else { this.holdPiece = { ...this.piece, shape: this.piece.shape.map(r => [...r]) }; this.spawnPiece(); this.canHold = false; }
     window.audioManager.playRotate();
   }
 
@@ -203,36 +222,41 @@ class TetrisGame {
     VFX.panel(c, panelX - 10, 20, 210, H - 40, { bg: 'rgba(0,0,20,0.6)', border: 'rgba(0,255,255,0.12)', radius: 10 });
 
     VFX.glowText(c, 'NEXT', panelX, 50, { font: 'bold 13px monospace', color: '#00ffff', align: 'left' });
-    if (this.nextPiece) this.nextPiece.shape.forEach((row, r) => row.forEach((cell, col) => {
-      if (cell) { c.save(); c.shadowColor = this.nextPiece.color; c.shadowBlur = 6; VFX.drawNeonRect(c, panelX + col * 18, 60 + r * 18, 16, 16, this.nextPiece.color, 3, 1); c.restore(); }
-    }));
+    this.queue.slice(0, 3).forEach((piece, i) => {
+      const y0 = 60 + i * 52;
+      piece.shape.forEach((row, r) => row.forEach((cell, col) => {
+        if (cell) { c.save(); c.globalAlpha = i === 0 ? 1 : 0.65; c.shadowColor = piece.color; c.shadowBlur = 6; VFX.drawNeonRect(c, panelX + col * 16, y0 + r * 16, 14, 14, piece.color, 3, 1); c.restore(); }
+      }));
+    });
 
-    VFX.glowText(c, 'HOLD', panelX, 160, { font: 'bold 13px monospace', color: this.canHold ? '#ff00ff' : '#444', align: 'left' });
+    VFX.glowText(c, 'HOLD', panelX, 225, { font: 'bold 13px monospace', color: this.canHold ? '#ff00ff' : '#444', align: 'left' });
     if (this.holdPiece) this.holdPiece.shape.forEach((row, r) => row.forEach((cell, col) => {
-      if (cell) { c.save(); c.globalAlpha = this.canHold ? 1 : 0.3; VFX.drawNeonRect(c, panelX + col * 18, 170 + r * 18, 16, 16, this.holdPiece.color, 3, 1); c.restore(); }
+      if (cell) { c.save(); c.globalAlpha = this.canHold ? 1 : 0.3; VFX.drawNeonRect(c, panelX + col * 18, 235 + r * 18, 16, 16, this.holdPiece.color, 3, 1); c.restore(); }
     }));
 
-    VFX.drawLEDText(`${this.score}`, panelX + 95, 270, '#00ffff', 22);
-    VFX.glowText(c, 'SCORE', panelX, 270, { font: '11px monospace', color: '#888', align: 'left' });
-    VFX.glowText(c, `LEVEL: ${this.level}`, panelX, 295, { font: '13px monospace', color: '#ff00ff', align: 'left' });
-    VFX.glowText(c, `LINES: ${this.lines}`, panelX, 315, { font: '13px monospace', color: '#ffff00', align: 'left' });
-    VFX.glowText(c, `HIGH: ${window.gameStorage.getHighScore('tetris')}`, panelX, 340, { font: '11px monospace', color: '#666', align: 'left' });
+    VFX.drawLEDText(c, `${this.score}`, panelX + 95, 330, '#00ffff', 22);
+    VFX.glowText(c, 'SCORE', panelX, 330, { font: '11px monospace', color: '#888', align: 'left' });
+    VFX.glowText(c, `LEVEL: ${this.level}`, panelX, 355, { font: '13px monospace', color: '#ff00ff', align: 'left' });
+    VFX.glowText(c, `LINES: ${this.lines}`, panelX, 375, { font: '13px monospace', color: '#ffff00', align: 'left' });
+    if (this.combo > 0) VFX.glowText(c, `COMBO x${this.combo + 1}`, panelX, 395, { font: '12px monospace', color: '#00ff88', align: 'left' });
+    if (this.backToBack) VFX.glowText(c, 'BACK-TO-BACK', panelX, 415, { font: '11px monospace', color: '#ff3366', align: 'left' });
+    VFX.glowText(c, `HIGH: ${window.gameStorage.getHighScore('tetris')}`, panelX, 435, { font: '11px monospace', color: '#666', align: 'left' });
 
     ['← → MOVE', '↑ ROTATE', '↓ SOFT DROP', 'SPACE HARD', 'C HOLD', 'P PAUSE'].forEach((t, i) => {
-      VFX.glowText(c, t, panelX, 380 + i * 18, { font: '10px monospace', color: '#444', align: 'left' });
+      VFX.glowText(c, t, panelX, 465 + i * 18, { font: '10px monospace', color: '#444', align: 'left' });
     });
 
     if (this.paused) {
       c.fillStyle = 'rgba(10,0,21,0.7)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 150, H / 2 - 40, 300, 80, '#ff00ff', 12, 2);
-      VFX.drawLEDText('PAUSED', W / 2, H / 2, '#ff00ff', 36);
+      VFX.drawLEDText(c, 'PAUSED', W / 2, H / 2, '#ff00ff', 36);
     }
 
     if (this.gameOver) {
       c.fillStyle = 'rgba(10,0,21,0.8)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 180, H / 2 - 80, 360, 160, '#ff3366', 12, 2);
-      VFX.drawLEDText('GAME OVER', W / 2, H / 2 - 30, '#ff3366', 38);
-      VFX.drawLEDText(`SCORE: ${this.score}`, W / 2, H / 2 + 15, '#00ffff', 22);
+      VFX.drawLEDText(c, 'GAME OVER', W / 2, H / 2 - 30, '#ff3366', 38);
+      VFX.drawLEDText(c, `SCORE: ${this.score}`, W / 2, H / 2 + 15, '#00ffff', 22);
       VFX.glowText(c, 'R = RESTART  |  ESC = MENU', W / 2, H / 2 + 55, { font: '12px monospace', color: '#666' });
     }
 

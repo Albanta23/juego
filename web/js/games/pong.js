@@ -5,6 +5,7 @@ class PongGame {
     this.W = canvas.width; this.H = canvas.height;
     this.running = false; this.frame = 0;
     this.state = 'menu'; this.vsAI = true; this.scoreToWin = 7;
+    this.serveTimer = 0; this.lastScorer = 0;
     this.paddleW = 14; this.paddleH = Math.min(80, this.H * 0.18);
     this.ballSize = 12;
     this.particles = new VFX.particles();
@@ -20,6 +21,7 @@ class PongGame {
     this.p1 = { x: 30, y: this.H / 2 - this.paddleH / 2, score: 0, color: '#00ffff' };
     this.p2 = { x: this.W - 44, y: this.H / 2 - this.paddleH / 2, score: 0, color: '#ff00ff' };
     this.ball = { x: this.W / 2, y: this.H / 2, vx: 5 * (Math.random() > 0.5 ? 1 : -1), vy: 3 * (Math.random() > 0.5 ? 1 : -1), speed: 5 };
+    this.serveTimer = 45; this.lastScorer = 0;
     this.trail = []; this.state = 'playing';
     window.updateScore('0-0');
   }
@@ -42,32 +44,41 @@ class PongGame {
     if (this.state !== 'playing') return;
     this.shake.update(dt);
     const speed = 7;
-    if (this.keys['ArrowUp'] || this.keys['w']) this.p1.y = Math.max(0, this.p1.y - speed);
-    if (this.keys['ArrowDown'] || this.keys['s']) this.p1.y = Math.min(this.H - this.paddleH, this.p1.y + speed);
-    if (this.vsAI) { const t = this.ball.y - this.paddleH / 2; this.p2.y += Math.max(-5, Math.min(5, t - this.p2.y)); }
+    if (this.keys['w'] || (this.vsAI && this.keys['ArrowUp'])) this.p1.y = Math.max(0, this.p1.y - speed);
+    if (this.keys['s'] || (this.vsAI && this.keys['ArrowDown'])) this.p1.y = Math.min(this.H - this.paddleH, this.p1.y + speed);
+    if (this.vsAI) {
+      const lead = this.ball.vx > 0 ? Math.max(-45, Math.min(45, this.ball.vy * 5)) : 0;
+      const error = Math.sin(this.frame * 0.025) * 26;
+      const t = this.ball.y + lead + error - this.paddleH / 2;
+      const aiSpeed = 3.6 + Math.min(2.5, Math.abs(this.ball.vx) * 0.18);
+      this.p2.y += Math.max(-aiSpeed, Math.min(aiSpeed, t - this.p2.y));
+      this.p2.y = Math.max(0, Math.min(this.H - this.paddleH, this.p2.y));
+    }
     else { if (this.keys['ArrowUp']) this.p2.y = Math.max(0, this.p2.y - speed); if (this.keys['ArrowDown']) this.p2.y = Math.min(this.H - this.paddleH, this.p2.y + speed); }
 
     this.trail.push({ x: this.ball.x, y: this.ball.y, t: this.frame });
     if (this.trail.length > 12) this.trail.shift();
+    if (this.serveTimer > 0) { this.serveTimer--; return; }
     this.ball.x += this.ball.vx; this.ball.y += this.ball.vy;
 
     if (this.ball.y <= 0 || this.ball.y >= this.H - this.ballSize) { this.ball.vy *= -1; this.ball.y = Math.max(0, Math.min(this.H - this.ballSize, this.ball.y)); window.audioManager.playBounce(); }
 
     const bx = this.ball.x, by = this.ball.y;
     if (bx <= this.p1.x + this.paddleW && by + this.ballSize >= this.p1.y && by <= this.p1.y + this.paddleH && this.ball.vx < 0) {
-      this.ball.vx *= -1.06; const hp = (by + this.ballSize / 2 - this.p1.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 10;
+      this.ball.vx = Math.min(12, Math.abs(this.ball.vx) * 1.06); const hp = (by + this.ballSize / 2 - this.p1.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 11;
       this.ball.speed = Math.min(12, this.ball.speed + 0.3);
       window.audioManager.playHit();
       this.particles.emit(this.p1.x + this.paddleW, by + this.ballSize / 2, 12, ['#00ffff','#fff','#00ff88']);
     }
     if (bx + this.ballSize >= this.p2.x && by + this.ballSize >= this.p2.y && by <= this.p2.y + this.paddleH && this.ball.vx > 0) {
-      this.ball.vx *= -1.06; const hp = (by + this.ballSize / 2 - this.p2.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 10;
+      this.ball.vx = -Math.min(12, Math.abs(this.ball.vx) * 1.06); const hp = (by + this.ballSize / 2 - this.p2.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 11;
       this.ball.speed = Math.min(12, this.ball.speed + 0.3);
       window.audioManager.playHit();
       this.particles.emit(this.p2.x, by + this.ballSize / 2, 12, ['#ff00ff','#fff','#ff3366']);
     }
 
     if (bx < 0) {
+      this.lastScorer = 2;
       this.p2.score++; window.audioManager.playGameOver(); this.shake.trigger(8, 200);
       this.particles.emit(this.W / 4, this.H / 2, 30, ['#ff3366','#ff00ff','#fff'], [100, 300], [0.5, 1.0]);
       if (this.p2.score >= this.scoreToWin) { this.state = 'gameover'; window.gameStorage.setHighScore('pong', this.p1.score * 100); }
@@ -75,6 +86,7 @@ class PongGame {
       window.updateScore(`${this.p1.score}-${this.p2.score}`);
     }
     if (bx > this.W) {
+      this.lastScorer = 1;
       this.p1.score++; window.audioManager.playScore(); this.shake.trigger(6, 150);
       this.particles.emit(this.W * 3 / 4, this.H / 2, 20, ['#00ffff','#fff','#00ff88'], [80, 200], [0.3, 0.7]);
       if (this.p1.score >= this.scoreToWin) { this.state = 'gameover'; window.gameStorage.setHighScore('pong', this.p1.score * 100); }
@@ -86,6 +98,7 @@ class PongGame {
   resetBall(dir) {
     this.ball = { x: this.W / 2, y: this.H / 2, speed: 5, vx: 5 * dir, vy: 3 * (Math.random() > 0.5 ? 1 : -1) };
     this.trail = [];
+    this.serveTimer = 45;
   }
 
   draw() {
@@ -94,7 +107,7 @@ class PongGame {
     VFX.starfield(c, W, H, this.stars, this.frame * 0.015);
 
     if (this.state === 'menu') {
-      VFX.drawLEDText('PONG', W / 2, H / 2 - 80, '#ff00ff', 72);
+      VFX.drawLEDText(c, 'PONG', W / 2, H / 2 - 80, '#ff00ff', 72);
       VFX.glowText(c, 'PRESS 1 FOR VS AI', W / 2, H / 2 - 10, { font: '20px monospace', color: '#00ffff' });
       VFX.glowText(c, 'PRESS 2 FOR 2 PLAYERS', W / 2, H / 2 + 25, { font: '20px monospace', color: '#ff00ff' });
       VFX.glowText(c, 'P1: W/S  |  P2: ↑/↓', W / 2, H / 2 + 70, { font: '12px monospace', color: '#555' });
@@ -135,22 +148,27 @@ class PongGame {
     // Score LED
     VFX.panel(c, W / 4 - 70, 15, 140, 70, { bg: 'rgba(0,0,20,0.6)', border: 'rgba(0,255,255,0.15)', radius: 8 });
     VFX.panel(c, W * 3 / 4 - 70, 15, 140, 70, { bg: 'rgba(0,0,20,0.6)', border: 'rgba(255,0,255,0.15)', radius: 8 });
-    VFX.drawLEDText(`${this.p1.score}`, W / 4, 38, '#00ffff', 36);
-    VFX.drawLEDText(`${this.p2.score}`, W * 3 / 4, 38, '#ff00ff', 36);
+    VFX.drawLEDText(c, `${this.p1.score}`, W / 4, 38, '#00ffff', 36);
+    VFX.drawLEDText(c, `${this.p2.score}`, W * 3 / 4, 38, '#ff00ff', 36);
     VFX.glowText(c, 'P1', W / 4, 72, { font: '10px monospace', color: '#00ffff' });
     VFX.glowText(c, this.vsAI ? 'CPU' : 'P2', W * 3 / 4, 72, { font: '10px monospace', color: '#ff00ff' });
+    if (this.serveTimer > 0 && this.state === 'playing') {
+      const label = this.lastScorer === 0 ? 'READY' : `POINT P${this.lastScorer}`;
+      VFX.glowText(c, label, W / 2, H / 2 - 38, { font: '18px monospace', color: '#ffff00' });
+      VFX.drawLEDText(c, `${Math.ceil(this.serveTimer / 15)}`, W / 2, H / 2, '#00ffff', 52);
+    }
 
     if (this.state === 'paused') {
       c.fillStyle = 'rgba(10,0,21,0.7)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 140, H / 2 - 40, 280, 80, '#ff00ff', 12, 2);
-      VFX.drawLEDText('PAUSED', W / 2, H / 2, '#ff00ff', 36);
+      VFX.drawLEDText(c, 'PAUSED', W / 2, H / 2, '#ff00ff', 36);
     }
 
     if (this.state === 'gameover') {
       c.fillStyle = 'rgba(10,0,21,0.8)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 200, H / 2 - 70, 400, 140, '#ffff00', 12, 2);
       const winner = this.p1.score >= this.scoreToWin ? 'P1 WINS!' : (this.vsAI ? 'CPU WINS!' : 'P2 WINS!');
-      VFX.drawLEDText(winner, W / 2, H / 2 - 15, '#ffff00', 40);
+      VFX.drawLEDText(c, winner, W / 2, H / 2 - 15, '#ffff00', 40);
       VFX.glowText(c, 'R = RESTART  |  ESC = MENU', W / 2, H / 2 + 35, { font: '12px monospace', color: '#666' });
     }
 

@@ -10,6 +10,7 @@ class Game2048 {
     this.offsetY = (this.H - this.size * (this.cell + this.gap) + this.gap) / 2 + 20;
     this.running = false; this.frame = 0;
     this.score = 0; this.grid = [];
+    this.previous = null;
     this.gameOver = false; this.won = false; this.keepPlaying = false;
     this.particles = new VFX.particles();
     this.shake = new VFX.screenShake();
@@ -39,7 +40,7 @@ class Game2048 {
 
   reset() {
     this.grid = Array.from({ length: this.size }, () => Array(this.size).fill(0));
-    this.score = 0; this.gameOver = false; this.won = false; this.keepPlaying = false;
+    this.score = 0; this.previous = null; this.gameOver = false; this.won = false; this.keepPlaying = false;
     this.addRandom(); this.addRandom(); window.updateScore(0);
   }
 
@@ -62,6 +63,7 @@ class Game2048 {
     if (this.gameOver) return;
     let moved = false, totalScore = 0, anyMerged = false;
     const g = this.grid.map(r => [...r]);
+    const scoreBefore = this.score;
     const process = (arr, rev = false) => {
       let a = rev ? [...arr].reverse() : [...arr];
       const { result, score, moved: m, merged } = this.slide(a);
@@ -71,10 +73,12 @@ class Game2048 {
     if (dir === 'left') { for (let r = 0; r < this.size; r++) this.grid[r] = process(g[r]); }
     else if (dir === 'right') { for (let r = 0; r < this.size; r++) this.grid[r] = process(g[r], true); }
     else if (dir === 'up') { for (let c = 0; c < this.size; c++) { const col = [g[0][c], g[1][c], g[2][c], g[3][c]]; const res = process(col); for (let r = 0; r < this.size; r++) this.grid[r][c] = res[r]; } }
-    else if (dir === 'down') { for (let c = 0; c < this.size; c++) { const col = [g[3][c], g[2][c], g[1][c], g[0][c]]; const res = process(col, true).reverse(); for (let r = 0; r < this.size; r++) this.grid[r][c] = res[r]; } }
+    else if (dir === 'down') { for (let c = 0; c < this.size; c++) { const col = [g[0][c], g[1][c], g[2][c], g[3][c]]; const res = process(col, true); for (let r = 0; r < this.size; r++) this.grid[r][c] = res[r]; } }
 
     if (moved) {
+      this.previous = { grid: g, score: scoreBefore, won: this.won, keepPlaying: this.keepPlaying };
       this.score += totalScore; this.addRandom(); window.updateScore(this.score);
+      window.gameStorage.setHighScore('game2048', this.score);
       if (anyMerged) { window.audioManager.playMerge(); this.shake.trigger(4, 100); this.addMergeParticles(); }
       if (!this.won && !this.keepPlaying) { for (let r = 0; r < this.size; r++) for (let c = 0; c < this.size; c++) if (this.grid[r][c] === 2048) this.won = true; }
       if (!this.canMove()) { this.gameOver = true; window.audioManager.playGameOver(); window.gameStorage.setHighScore('game2048', this.score); }
@@ -101,12 +105,25 @@ class Game2048 {
     if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     if (e.key === 'Escape') { exitGame(); return; }
     if (e.key === 'r') { this.reset(); return; }
+    if (e.key === 'u') { this.undo(); return; }
     if (this.won && !this.keepPlaying) { if (e.key === 'Enter') this.keepPlaying = true; return; }
     if (this.gameOver) return;
     if (e.key === 'ArrowLeft' || e.key === 'a') this.move('left');
     else if (e.key === 'ArrowRight' || e.key === 'd') this.move('right');
     else if (e.key === 'ArrowUp' || e.key === 'w') this.move('up');
     else if (e.key === 'ArrowDown' || e.key === 's') this.move('down');
+  }
+
+  undo() {
+    if (!this.previous) return;
+    this.grid = this.previous.grid.map(r => [...r]);
+    this.score = this.previous.score;
+    this.won = this.previous.won;
+    this.keepPlaying = this.previous.keepPlaying;
+    this.gameOver = false;
+    this.previous = null;
+    window.updateScore(this.score);
+    window.audioManager.playMove();
   }
 
   onTouchStart(e) { this.touchStartX = e.touches[0].clientX; this.touchStartY = e.touches[0].clientY; }
@@ -153,22 +170,22 @@ class Game2048 {
 
     const panelY = this.offsetY + gridW + 20;
     VFX.panel(c, this.offsetX, panelY, gridW, 55, { bg: 'rgba(0,0,20,0.6)', border: 'rgba(0,255,255,0.15)', radius: 8 });
-    VFX.drawLEDText(`${this.score}`, this.offsetX + 60, panelY + 18, '#00ffff', 20);
+    VFX.drawLEDText(c, `${this.score}`, this.offsetX + 60, panelY + 18, '#00ffff', 20);
     VFX.glowText(c, 'SCORE', this.offsetX + 15, panelY + 18, { font: '10px monospace', color: '#888', align: 'left' });
     VFX.glowText(c, `BEST: ${Math.max(parseInt(window.gameStorage.getHighScore('game2048') || '0'), this.score)}`, this.offsetX + 140, panelY + 18, { font: '12px monospace', color: '#ffff00', align: 'left' });
-    VFX.glowText(c, 'R = NEW  |  ESC = MENU  |  ARROWS/SWIPE', this.offsetX + 15, panelY + 40, { font: '10px monospace', color: '#444', align: 'left' });
+    VFX.glowText(c, 'R = NEW  |  U = UNDO  |  ESC = MENU  |  ARROWS/SWIPE', this.offsetX + 15, panelY + 40, { font: '10px monospace', color: '#444', align: 'left' });
 
     if (this.won && !this.keepPlaying) {
       c.fillStyle = 'rgba(10,0,21,0.7)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 180, H / 2 - 70, 360, 140, '#ffff00', 12, 2);
-      VFX.drawLEDText('YOU WIN!', W / 2, H / 2 - 15, '#ffff00', 48);
+      VFX.drawLEDText(c, 'YOU WIN!', W / 2, H / 2 - 15, '#ffff00', 48);
       VFX.glowText(c, 'ENTER TO KEEP PLAYING  |  R = NEW', W / 2, H / 2 + 35, { font: '12px monospace', color: '#888' });
     }
 
     if (this.gameOver) {
       c.fillStyle = 'rgba(10,0,21,0.8)'; c.fillRect(0, 0, W, H);
       VFX.drawNeonRect(c, W / 2 - 180, H / 2 - 70, 360, 140, '#ff3366', 12, 2);
-      VFX.drawLEDText('GAME OVER', W / 2, H / 2 - 15, '#ff3366', 42);
+      VFX.drawLEDText(c, 'GAME OVER', W / 2, H / 2 - 15, '#ff3366', 42);
       VFX.glowText(c, `SCORE: ${this.score}  |  R = NEW  |  ESC = MENU`, W / 2, H / 2 + 35, { font: '12px monospace', color: '#888' });
     }
 
