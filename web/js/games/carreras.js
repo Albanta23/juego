@@ -2,388 +2,276 @@ class CarrerasGame {
   constructor(canvas) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.canvas.width = 600;
-    this.canvas.height = 600;
-    this.running = false;
-    this.frame = 0;
+    this.W = canvas.width; this.H = canvas.height;
+    this.running = false; this.frame = 0;
     this.state = 'menu';
+    this.particles = new VFX.particles();
+    this.shake = new VFX.screenShake();
+    this.stars = VFX.generateStars(80);
     this.boundKeyDown = this.onKeyDown.bind(this);
     this.boundKeyUp = this.onKeyUp.bind(this);
-    this.keys = {};
-    this.rafId = null;
+    this.keys = {}; this.rafId = null;
+    this.roadOffset = 0; this.curveOffset = 0;
+    this.nitroParticles = []; this.speedLines = [];
+    this.scenery = this.initScenery();
     this.reset();
   }
 
+  initScenery() {
+    return Array.from({ length: 40 }, (_, i) => ({
+      y: i * 80 + Math.random() * 40,
+      side: Math.random() > 0.5 ? 1 : -1,
+      type: ['tree','bush','rock','sign'][Math.floor(Math.random() * 4)],
+      xOff: 80 + Math.random() * 60,
+      size: 0.6 + Math.random() * 0.6
+    }));
+  }
+
   reset() {
-    this.score = 0;
-    this.lap = 0;
-    this.totalLaps = 3;
-    this.speed = 0;
-    this.maxSpeed = 12;
-    this.accel = 0.15;
-    this.decel = 0.05;
-    this.friction = 0.02;
-    this.turnSpeed = 0.04;
-    this.drift = 0;
-    this.x = 300;
-    this.y = 450;
-    this.angle = -Math.PI / 2;
-    this.nitro = 100;
-    this.nitroActive = false;
-    this.shield = false;
-    this.shieldTimer = 0;
-    this.track = this.generateTrack();
-    this.enemies = this.generateEnemies();
-    this.powerups = this.generatePowerups();
-    this.particles = [];
-    this.cameraY = 0;
-    this.roadOffset = 0;
-    this.bgScroll = 0;
+    this.score = 0; this.speed = 0; this.maxSpeed = 14;
+    this.accel = 0.18; this.friction = 0.025;
+    this.x = this.W / 2; this.nitro = 100; this.nitroActive = false;
+    this.shield = false; this.shieldTimer = 0;
+    this.enemies = this.genEnemies(); this.powerups = this.genPowerups();
+    this.particles = new VFX.particles();
+    this.nitroParticles = []; this.speedLines = [];
     window.updateScore(0);
   }
 
-  generateTrack() {
-    const segments = [];
-    let x = 0;
-    for (let i = 0; i < 200; i++) {
-      const curve = Math.sin(i * 0.05) * 3 + Math.sin(i * 0.02) * 2;
-      segments.push({ y: i * 100, curve, width: 200 + Math.sin(i * 0.1) * 40 });
-      x += curve;
-    }
-    return segments;
+  genEnemies() {
+    const colors = ['#ff3366','#ffaa00','#00ffff','#ff00ff','#00ff88','#ffff00','#ff6600','#aa44ff'];
+    return Array.from({ length: 10 }, (_, i) => ({ x: this.W / 2 - 100 + Math.random() * 200, y: this.H - 200 - i * 220, speed: 3 + Math.random() * 4, color: colors[i % colors.length], w: 36, h: 60 }));
   }
 
-  generateEnemies() {
-    const enemies = [];
-    const colors = ['#f44', '#ff0', '#0af', '#f0f', '#0f0'];
-    for (let i = 0; i < 8; i++) {
-      enemies.push({
-        x: 250 + Math.random() * 100,
-        y: 200 + i * 250,
-        speed: 2 + Math.random() * 3,
-        color: colors[i % colors.length],
-        w: 30, h: 50,
-      });
-    }
-    return enemies;
-  }
-
-  generatePowerups() {
+  genPowerups() {
     const types = ['nitro', 'shield', 'star'];
-    const p = [];
-    for (let i = 0; i < 12; i++) {
-      p.push({
-        x: 220 + Math.random() * 160,
-        y: 150 + i * 200 + Math.random() * 100,
-        type: types[Math.floor(Math.random() * types.length)],
-        active: true,
-      });
-    }
-    return p;
+    return Array.from({ length: 15 }, (_, i) => ({ x: this.W / 2 - 120 + Math.random() * 240, y: this.H - 180 - i * 180 - Math.random() * 60, type: types[Math.floor(Math.random() * 3)], active: true }));
   }
 
-  start() {
-    this.running = true;
-    this.state = 'menu';
-    document.addEventListener('keydown', this.boundKeyDown);
-    document.addEventListener('keyup', this.boundKeyUp);
-    this.loop();
-  }
-
-  destroy() {
-    this.running = false;
-    document.removeEventListener('keydown', this.boundKeyDown);
-    document.removeEventListener('keyup', this.boundKeyUp);
-    if (this.rafId) cancelAnimationFrame(this.rafId);
-  }
+  start() { this.running = true; this.state = 'menu'; document.addEventListener('keydown', this.boundKeyDown); document.addEventListener('keyup', this.boundKeyUp); this.loop(); }
+  destroy() { this.running = false; document.removeEventListener('keydown', this.boundKeyDown); document.removeEventListener('keyup', this.boundKeyUp); if (this.rafId) cancelAnimationFrame(this.rafId); }
 
   onKeyDown(e) {
+    if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
     this.keys[e.key] = true;
-    if (this.state === 'menu') {
-      if (e.key === 'Enter') { this.reset(); this.state = 'playing'; }
-    }
+    if (this.state === 'menu' && e.key === 'Enter') { this.reset(); this.state = 'playing'; }
     if (e.key === 'Escape') exitGame();
-    if (e.key === 'r' || e.key === 'R') { this.reset(); this.state = 'playing'; }
-    if (e.key === 'n' || e.key === 'N') this.nitroActive = true;
+    if (e.key === 'r') { this.reset(); this.state = 'playing'; }
+    if (e.key === 'n') this.nitroActive = true;
   }
+  onKeyUp(e) { this.keys[e.key] = false; if (e.key === 'n') this.nitroActive = false; }
 
-  onKeyUp(e) {
-    this.keys[e.key] = false;
-    if (e.key === 'n' || e.key === 'N') this.nitroActive = false;
-  }
-
-  update() {
+  update(dt) {
     if (this.state !== 'playing') return;
+    this.shake.update(dt * 1000);
 
-    // Acceleration
-    if (this.keys['ArrowUp'] || this.keys['w']) {
-      this.speed = Math.min(this.maxSpeed, this.speed + this.accel);
-    } else {
-      this.speed = Math.max(0, this.speed - this.friction);
-    }
-    if (this.keys['ArrowDown'] || this.keys['s']) {
-      this.speed = Math.max(0, this.speed - this.decel * 3);
-    }
+    if (this.keys['ArrowUp'] || this.keys['w']) this.speed = Math.min(this.maxSpeed, this.speed + this.accel);
+    else this.speed = Math.max(0, this.speed - this.friction);
+    if (this.keys['ArrowDown'] || this.keys['s']) this.speed = Math.max(0, this.speed - this.accel * 2);
 
-    // Nitro
     if (this.nitroActive && this.nitro > 0) {
-      this.speed = Math.min(this.maxSpeed + 5, this.speed + 0.3);
-      this.nitro = Math.max(0, this.nitro - 0.5);
-      if (this.frame % 3 === 0) {
-        this.particles.push({
-          x: this.x + Math.random() * 10 - 5,
-          y: this.y + 25,
-          vx: Math.random() * 4 - 2, vy: 3 + Math.random() * 2,
-          life: 1, color: '#f80', size: 3 + Math.random() * 2
-        });
-      }
-    } else {
-      this.nitro = Math.min(100, this.nitro + 0.1);
-    }
+      this.speed = Math.min(this.maxSpeed + 6, this.speed + 0.35);
+      this.nitro = Math.max(0, this.nitro - 0.6);
+      if (this.frame % 2 === 0) this.nitroParticles.push({ x: this.x + (Math.random() - 0.5) * 20, y: this.H - 120, vx: (Math.random() - 0.5) * 3, vy: 4 + Math.random() * 3, life: 1, size: 3 + Math.random() * 3, color: Math.random() > 0.5 ? '#ff8800' : '#ffcc00' });
+    } else this.nitro = Math.min(100, this.nitro + 0.15);
 
-    // Turning
-    if (this.keys['ArrowLeft'] || this.keys['a']) {
-      this.angle -= this.turnSpeed * (this.speed / this.maxSpeed);
-      this.drift = Math.max(-1, this.drift - 0.1);
-    } else if (this.keys['ArrowRight'] || this.keys['d']) {
-      this.angle += this.turnSpeed * (this.speed / this.maxSpeed);
-      this.drift = Math.min(1, this.drift + 0.1);
-    } else {
-      this.drift *= 0.9;
-    }
+    const steer = 5 * (this.speed / this.maxSpeed);
+    if (this.keys['ArrowLeft'] || this.keys['a']) this.x -= steer;
+    if (this.keys['ArrowRight'] || this.keys['d']) this.x += steer;
+    this.x = Math.max(60, Math.min(this.W - 60, this.x));
 
-    // Move
-    this.x += Math.cos(this.angle) * this.speed;
-    this.y -= Math.sin(this.angle) * this.speed * 0.5;
-    this.bgScroll += this.speed;
+    this.roadOffset += this.speed;
+    this.curveOffset = Math.sin(this.roadOffset * 0.003) * 30;
 
-    // Road bounds
-    if (this.x < 100) { this.x = 100; this.speed *= 0.5; }
-    if (this.x > 500) { this.x = 500; this.speed *= 0.5; }
+    if (this.speed > 6 && this.frame % 2 === 0) this.speedLines.push({ x: Math.random() * this.W, y: this.H, vy: this.speed * 8, life: 1, len: 10 + this.speed * 3 });
 
-    // Enemies
     this.enemies.forEach(e => {
       e.y += this.speed - e.speed;
-      if (e.y > 700) e.y -= 900;
-      const dx = Math.abs(this.x - e.x);
-      const dy = Math.abs(this.y - e.y);
-      if (dx < 30 && dy < 45) {
-        if (this.shield) {
-          this.shield = false;
-          window.audioManager.playHit();
-          this.addParticles(this.x, this.y, '#ff0', 15);
-        } else {
-          this.speed = 0;
-          window.audioManager.playCarHit();
-          this.addParticles(this.x, this.y, '#f00', 20);
-        }
+      e.x += Math.sin(this.frame * 0.02 + e.y * 0.01) * 0.5;
+      if (e.y > this.H + 50) { e.y -= this.H + 400; e.x = this.W / 2 - 100 + Math.random() * 200; }
+      if (Math.abs(this.x - e.x) < 35 && Math.abs((this.H - 130) - e.y) < 50) {
+        if (this.shield) { this.shield = false; window.audioManager.playHit(); this.particles.emit(this.x, this.H - 130, 20, ['#00ffff','#fff']); this.shake.trigger(6, 200); }
+        else { this.speed = 0; window.audioManager.playCarHit(); this.particles.emit(this.x, this.H - 130, 30, ['#ff3366','#ff00ff','#fff'], [100, 300], [0.4, 1.0]); this.shake.trigger(10, 300); }
       }
     });
 
-    // Powerups
     this.powerups.forEach(p => {
       if (!p.active) return;
-      const dx = Math.abs(this.x - p.x);
-      const dy = Math.abs(this.y - p.y);
-      if (dx < 30 && dy < 30) {
+      p.y += this.speed;
+      if (p.y > this.H + 30) { p.y -= this.H + 400; p.x = this.W / 2 - 120 + Math.random() * 240; }
+      if (Math.abs(this.x - p.x) < 35 && Math.abs((this.H - 130) - p.y) < 35) {
         p.active = false;
         if (p.type === 'nitro') { this.nitro = 100; window.audioManager.playNitro(); }
         else if (p.type === 'shield') { this.shield = true; this.shieldTimer = performance.now(); window.audioManager.playPowerup(); }
         else if (p.type === 'star') { this.score += 50; window.audioManager.playBonus(); }
-        this.addParticles(p.x, p.y, '#ff0', 12);
+        this.particles.emit(p.x, p.y, 15, ['#ffff00','#fff','#ff00ff'], [60, 150], [0.3, 0.6]);
       }
     });
 
-    // Score
-    if (this.speed > 1) {
-      this.score += Math.floor(this.speed / 3);
-      window.updateScore(this.score);
-    }
+    if (this.speed > 1) { this.score += Math.floor(this.speed / 3); window.updateScore(this.score); }
 
-    // Particles
-    this.particles = this.particles.filter(p => {
-      p.x += p.vx; p.y += p.vy; p.life -= 0.02;
-      return p.life > 0;
-    });
-
-    // Shield timeout
+    this.particles.update(dt);
+    this.nitroParticles = this.nitroParticles.filter(p => { p.x += p.vx; p.y += p.vy; p.life -= 0.025; return p.life > 0; });
+    this.speedLines = this.speedLines.filter(l => { l.y -= l.vy * dt * 60; l.life -= 0.03; return l.life > 0; });
     if (this.shield && performance.now() - this.shieldTimer > 5000) this.shield = false;
   }
 
-  addParticles(x, y, color, count) {
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      this.particles.push({
-        x, y, vx: Math.cos(angle) * 4, vy: Math.sin(angle) * 4,
-        life: 1, color, size: 2 + Math.random() * 3
-      });
-    }
-  }
-
   draw() {
-    const c = this.ctx, W = this.canvas.width, H = this.canvas.height;
-    c.fillStyle = '#1a3a1a';
-    c.fillRect(0, 0, W, H);
+    const c = this.ctx, W = this.W, H = this.H;
+    c.save(); this.shake.apply(c);
+
+    // Synthwave sky
+    const skyG = c.createLinearGradient(0, 0, 0, H * 0.35);
+    skyG.addColorStop(0, '#0a0020'); skyG.addColorStop(0.5, '#200040'); skyG.addColorStop(1, '#400030');
+    c.fillStyle = skyG; c.fillRect(0, 0, W, H * 0.35);
+    VFX.starfield(c, W, H * 0.35, this.stars, this.frame * 0.02);
+    VFX.radialGlow(c, W / 2, H * 0.33, 200, '#ff4400', 0.12);
 
     if (this.state === 'menu') {
-      c.textAlign = 'center';
-      c.fillStyle = '#f44';
-      c.font = 'bold 48px sans-serif';
-      c.fillText('CARRERAS', W / 2, H / 2 - 60);
-      c.fillStyle = '#fff';
-      c.font = '20px sans-serif';
-      c.fillText('Press ENTER to start', W / 2, H / 2);
-      c.fillStyle = '#888';
-      c.font = '14px sans-serif';
-      c.fillText('↑↓ Accelerate/Brake  |  ←→ Steer  |  N Nitro', W / 2, H / 2 + 40);
-      c.fillText('3 laps to win!', W / 2, H / 2 + 65);
-      return;
+      VFX.drawLEDText('RACING', W / 2, H / 2 - 80, '#ff3366', 64);
+      VFX.glowText(c, 'PRESS ENTER TO START', W / 2, H / 2, { font: '22px monospace', color: '#00ffff' });
+      VFX.glowText(c, '↑↓ SPEED  |  ←→ STEER  |  N NITRO', W / 2, H / 2 + 45, { font: '14px monospace', color: '#888' });
+      VFX.drawCRTEffect(c, W, H, 0.2);
+      c.restore(); return;
     }
 
-    // Road perspective
-    const roadW = 300;
-    const horizon = 150;
-    const segH = 8;
+    const horizon = H * 0.33, roadBaseW = W * 0.55;
 
-    for (let i = 0; i < 50; i++) {
-      const t = i / 50;
-      const y = horizon + t * (H - horizon);
-      const w = roadW * (0.3 + t * 0.7);
-      const curve = Math.sin((this.bgScroll + i * 10) * 0.003) * 40 * t;
+    // Road segments
+    for (let i = 55; i >= 0; i--) {
+      const t = i / 55, y = horizon + t * (H - horizon), segH = (H - horizon) / 55 + 2;
+      const w = roadBaseW * (0.3 + t * 0.7);
+      const curve = Math.sin((this.roadOffset * 0.003) + i * 0.08) * 40 * t + this.curveOffset * t;
       const cx = W / 2 + curve;
 
-      // Grass
-      const grassColor = i % 2 === 0 ? '#2a5a2a' : '#245024';
-      c.fillStyle = grassColor;
-      c.fillRect(0, y, W, segH + 1);
+      c.fillStyle = i % 2 === 0 ? '#0a1a0a' : '#081508'; c.fillRect(0, y, W, segH + 1);
 
-      // Road
-      c.fillStyle = i % 2 === 0 ? '#444' : '#3a3a3a';
+      // Rumble strips
+      const stripW = w + 16;
+      c.fillStyle = i % 3 === 0 ? '#ff3366' : '#ffffff';
+      c.fillRect(cx - stripW / 2, y, stripW, segH + 1);
+
+      c.fillStyle = i % 2 === 0 ? '#222' : '#1a1a1a';
       c.fillRect(cx - w / 2, y, w, segH + 1);
 
-      // Center line
-      if (i % 4 < 2) {
-        c.fillStyle = '#ff0';
-        c.fillRect(cx - 2, y, 4, segH + 1);
-      }
+      if (i % 4 < 2) { c.fillStyle = '#ffff00'; c.fillRect(cx - 2, y, 4, segH + 1); }
 
-      // Road edges
-      c.fillStyle = '#f00';
-      c.fillRect(cx - w / 2, y, 4, segH + 1);
-      c.fillRect(cx + w / 2 - 4, y, 4, segH + 1);
+      // Neon edge lines
+      c.save(); c.shadowColor = '#00ffff'; c.shadowBlur = 6;
+      c.fillStyle = '#00ffff';
+      c.fillRect(cx - w / 2, y, 2, segH + 1);
+      c.fillRect(cx + w / 2 - 2, y, 2, segH + 1);
+      c.restore();
     }
 
-    // Enemies
-    this.enemies.forEach(e => {
-      const screenY = e.y - this.bgScroll * 0.3;
-      if (screenY < 100 || screenY > H) return;
-      const scale = 0.3 + (screenY - 100) / (H - 100) * 0.7;
-      const ex = e.x + Math.sin((this.bgScroll + e.y) * 0.01) * 20;
-      c.fillStyle = e.color;
-      c.fillRect(ex - e.w * scale / 2, screenY - e.h * scale / 2, e.w * scale, e.h * scale);
-      c.fillStyle = '#0003';
-      c.fillRect(ex - e.w * scale / 2 + 3, screenY - e.h * scale / 2 + 3, e.w * scale - 6, e.h * scale - 6);
+    // Scenery
+    this.scenery.forEach(s => {
+      const screenY = s.y - (this.roadOffset * 0.3) % (this.scenery.length * 80);
+      if (screenY < horizon - 20 || screenY > H + 30) return;
+      const dist = (screenY - horizon) / (H - horizon), scale = 0.3 + dist * 0.7;
+      const cx = W / 2 + this.curveOffset * dist;
+      const sx = cx + s.side * (roadBaseW * 0.4 * scale + s.xOff * scale);
+      c.save(); c.translate(sx, screenY); c.scale(scale, scale);
+      if (s.type === 'tree') {
+        c.fillStyle = '#3a2a1a'; c.fillRect(-3, -s.size * 30, 6, s.size * 30);
+        c.save(); c.shadowColor = '#00ff88'; c.shadowBlur = 8;
+        c.fillStyle = '#0a3a0a'; c.beginPath(); c.arc(0, -s.size * 35, s.size * 18, 0, Math.PI * 2); c.fill();
+        c.restore();
+      } else if (s.type === 'bush') {
+        c.save(); c.shadowColor = '#00ff88'; c.shadowBlur = 5;
+        c.fillStyle = '#0a3a0a'; c.beginPath(); c.arc(0, -s.size * 8, s.size * 12, 0, Math.PI * 2); c.fill();
+        c.restore();
+      } else if (s.type === 'rock') {
+        c.fillStyle = '#555'; c.beginPath(); c.moveTo(-s.size * 10, 0); c.lineTo(-s.size * 5, -s.size * 12); c.lineTo(s.size * 8, -s.size * 10); c.lineTo(s.size * 12, 0); c.fill();
+      } else {
+        c.fillStyle = '#666'; c.fillRect(-2, -s.size * 25, 4, s.size * 25);
+        c.save(); c.shadowColor = '#ffff00'; c.shadowBlur = 8;
+        c.fillStyle = '#ffff00'; c.fillRect(-8, -s.size * 25, 16, 10);
+        c.restore();
+      }
+      c.restore();
+    });
+
+    // Speed lines
+    this.speedLines.forEach(l => {
+      c.strokeStyle = `rgba(0,255,255,${l.life * 0.3})`; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(l.x, l.y); c.lineTo(l.x, l.y + l.len); c.stroke();
     });
 
     // Powerups
     this.powerups.forEach(p => {
       if (!p.active) return;
-      const screenY = p.y - this.bgScroll * 0.3;
-      if (screenY < 100 || screenY > H) return;
-      const colors = { nitro: '#f80', shield: '#0af', star: '#ff0' };
-      c.fillStyle = colors[p.type];
-      c.beginPath();
-      c.arc(p.x, screenY, 8, 0, Math.PI * 2);
-      c.fill();
+      const colors = { nitro: '#ff8800', shield: '#00ffff', star: '#ffff00' };
+      const pulse = 1 + 0.15 * Math.sin(this.frame * 0.1);
+      VFX.drawNeonCircle(c, p.x, p.y, 12 * pulse, colors[p.type], 2);
+      c.fillStyle = '#fff'; c.font = 'bold 11px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+      const icons = { nitro: '⚡', shield: '🛡', star: '★' };
+      c.fillText(icons[p.type], p.x, p.y);
+    });
+
+    // Enemy cars
+    this.enemies.forEach(e => {
+      if (e.y < horizon || e.y > H + 50) return;
+      const dist = (e.y - horizon) / (H - horizon), scale = 0.4 + dist * 0.6;
+      const cx = W / 2 + this.curveOffset * dist + Math.sin(this.frame * 0.02 + e.y * 0.01) * 10 * dist;
+      const ex = cx + (e.x - W / 2) * scale;
+      c.save(); c.translate(ex, e.y); c.scale(scale, scale);
+      VFX.drawCar(c, 0, 0, e.w, e.h, e.color);
+      c.restore();
     });
 
     // Player car
-    c.save();
-    c.translate(this.x, this.y);
-    c.rotate(this.drift * 0.15);
-
-    // Car body
-    c.fillStyle = '#0af';
-    c.fillRect(-15, -25, 30, 50);
-    c.fillStyle = '#08c';
-    c.fillRect(-12, -20, 24, 40);
-    // Windshield
-    c.fillStyle = '#fff4';
-    c.fillRect(-10, -15, 20, 12);
-    // Wheels
-    c.fillStyle = '#333';
-    c.fillRect(-18, -20, 6, 12);
-    c.fillRect(12, -20, 6, 12);
-    c.fillRect(-18, 10, 6, 12);
-    c.fillRect(12, 10, 6, 12);
-
-    // Shield glow
+    c.save(); c.translate(this.x, this.H - 130);
+    const tilt = (this.keys['ArrowLeft'] || this.keys['a'] ? -0.1 : 0) + (this.keys['ArrowRight'] || this.keys['d'] ? 0.1 : 0);
+    c.rotate(tilt);
+    VFX.drawCar(c, 0, 0, 40, 70, '#00ffff');
     if (this.shield) {
-      c.strokeStyle = '#0af';
-      c.lineWidth = 3;
-      c.globalAlpha = 0.5 + Math.sin(this.frame * 0.1) * 0.3;
-      c.beginPath();
-      c.arc(0, 0, 30, 0, Math.PI * 2);
-      c.stroke();
-      c.globalAlpha = 1;
+      c.save(); c.strokeStyle = '#00ffff'; c.lineWidth = 3;
+      c.globalAlpha = 0.4 + 0.3 * Math.sin(this.frame * 0.15);
+      c.shadowColor = '#00ffff'; c.shadowBlur = 15;
+      c.beginPath(); c.arc(0, 0, 45, 0, Math.PI * 2); c.stroke();
+      c.restore();
     }
-
     c.restore();
 
-    // Particles
-    this.particles.forEach(p => {
-      c.globalAlpha = p.life;
-      c.fillStyle = p.color;
-      c.beginPath();
-      c.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      c.fill();
+    // Nitro particles
+    this.nitroParticles.forEach(p => {
+      c.globalAlpha = p.life; c.fillStyle = p.color;
+      c.shadowColor = p.color; c.shadowBlur = 8;
+      c.beginPath(); c.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); c.fill();
     });
-    c.globalAlpha = 1;
+    c.globalAlpha = 1; c.shadowBlur = 0;
+
+    this.particles.draw(c);
 
     // HUD
-    c.textAlign = 'left';
-    c.fillStyle = '#fff';
-    c.font = 'bold 16px sans-serif';
-    c.fillText(`Score: ${this.score}`, 10, 25);
-    c.fillText(`Speed: ${Math.round(this.speed * 10)}`, 10, 48);
+    VFX.panel(c, 10, 10, 220, 100, { bg: 'rgba(0,0,20,0.7)', border: 'rgba(0,255,255,0.15)', radius: 10 });
+    VFX.drawLEDText(`${this.score}`, 120, 30, '#00ffff', 22);
+    VFX.glowText(c, 'SCORE', 20, 30, { font: '10px monospace', color: '#888', align: 'left' });
+    VFX.glowText(c, `SPEED: ${Math.round(this.speed * 10)} KM/H`, 20, 55, { font: '13px monospace', color: this.speed > 10 ? '#ff3366' : '#aaa', align: 'left' });
 
     // Nitro bar
-    c.fillStyle = '#333';
-    c.fillRect(10, 58, 100, 12);
-    c.fillStyle = this.nitro > 20 ? '#f80' : '#f44';
-    c.fillRect(10, 58, this.nitro, 12);
-    c.fillStyle = '#fff';
-    c.font = '10px sans-serif';
-    c.fillText('NITRO', 15, 68);
+    c.fillStyle = 'rgba(255,255,255,0.05)'; c.beginPath(); c.roundRect(20, 72, 140, 18, 9); c.fill();
+    VFX.drawNeonRect(c, 20, 72, Math.max(0, this.nitro * 1.4), 18, '#ff8800', 9, 1);
+    VFX.glowText(c, 'NITRO', 90, 81, { font: 'bold 10px monospace', color: '#fff' });
 
-    // Controls hint
-    c.textAlign = 'right';
-    c.fillStyle = '#888';
-    c.font = '11px sans-serif';
-    c.fillText('← → Steer  |  ↑ ↓ Speed  |  N Nitro  |  ESC Menu', W - 10, H - 10);
+    VFX.glowText(c, '← → STEER  |  ↑ ↓ SPEED  |  N NITRO  |  ESC MENU', W - 10, H - 15, { font: '11px monospace', color: '#444', align: 'right', baseline: 'bottom' });
 
-    // Game over / win
-    if (this.state === 'gameover' || this.state === 'win') {
-      c.fillStyle = 'rgba(0,0,0,0.7)';
-      c.fillRect(0, 0, W, H);
-      c.textAlign = 'center';
-      c.fillStyle = this.state === 'win' ? '#ff0' : '#f44';
-      c.font = 'bold 44px sans-serif';
-      c.fillText(this.state === 'win' ? 'FINISHED!' : 'CRASHED!', W / 2, H / 2 - 20);
-      c.fillStyle = '#fff';
-      c.font = '22px sans-serif';
-      c.fillText(`Score: ${this.score}`, W / 2, H / 2 + 25);
-      c.fillStyle = '#888';
-      c.font = '14px sans-serif';
-      c.fillText('R = Restart  |  ESC = Menu', W / 2, H / 2 + 60);
+    if (this.state === 'gameover') {
+      c.fillStyle = 'rgba(10,0,21,0.8)'; c.fillRect(0, 0, W, H);
+      VFX.drawNeonRect(c, W / 2 - 200, H / 2 - 80, 400, 160, '#ff3366', 12, 2);
+      VFX.drawLEDText('CRASHED!', W / 2, H / 2 - 25, '#ff3366', 48);
+      VFX.drawLEDText(`SCORE: ${this.score}`, W / 2, H / 2 + 20, '#00ffff', 22);
+      VFX.glowText(c, 'R = RESTART  |  ESC = MENU', W / 2, H / 2 + 55, { font: '12px monospace', color: '#666' });
     }
+
+    VFX.drawCRTEffect(c, W, H, 0.15);
+    c.restore();
   }
 
   loop() {
     if (!this.running) return;
-    this.frame++;
-    this.update();
-    this.draw();
+    this.frame++; this.update(1 / 60); this.draw();
     this.rafId = requestAnimationFrame(() => this.loop());
   }
 }
