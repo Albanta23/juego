@@ -5,6 +5,7 @@ const GAMES = [
   { id: 'pong', name: 'PONG', icon: '🏓', color: '#ff00ff', desc: '1v1 o vs CPU. El original.' },
   { id: 'game2048', name: '2048', icon: '🔢', color: '#ffff00', desc: 'Desliza y combina numeros.' },
   { id: 'carreras', name: 'RACING', icon: '🏎️', color: '#ff3366', desc: 'Circuito neon con power-ups.' },
+  { id: 'graveknight', name: 'GRAVE KNIGHT', icon: '🛡️', color: '#c8f7ff', desc: 'Arcade de cementerio: salta, lanza y sobrevive.' },
 ];
 
 let currentGame = null;
@@ -32,6 +33,10 @@ const TOUCH_LAYOUTS = {
   carreras: {
     pad: [['↑', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
     actions: [['START', 'Enter'], ['NITRO', 'n'], ['RETRY', 'r']]
+  },
+  graveknight: {
+    pad: [['JMP', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
+    actions: [['START', 'Enter'], ['ATTACK', 'x'], ['RETRY', 'r']]
   }
 };
 
@@ -84,6 +89,7 @@ function launchGame(id) {
     case 'pong': gameInstance = new PongGame(canvas); break;
     case 'game2048': gameInstance = new Game2048(canvas); break;
     case 'carreras': gameInstance = new CarrerasGame(canvas); break;
+    case 'graveknight': gameInstance = new GraveKnightGame(canvas); break;
   }
   setupTouchControls(id);
   if (gameInstance) gameInstance.start();
@@ -179,5 +185,7 @@ function dispatchGameKey(type, key) {
 }
 
 function shouldRepeatTouchKey(key) {
-  return currentGame === 'tetris' && ['ArrowLeft', 'ArrowRight', 'ArrowDown'].includes(key);
+  if (currentGame === 'tetris') return ['ArrowLeft', 'ArrowRight', 'ArrowDown'].includes(key);
+  if (currentGame === 'graveknight') return ['ArrowLeft', 'ArrowRight', 'x'].includes(key);
+  return false;
 }
