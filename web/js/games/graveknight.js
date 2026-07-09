@@ -269,7 +269,7 @@ class GraveKnightGame {
     this.platforms.forEach(pl => {
       if (pl.x + pl.w < left || pl.x > right || pl.y === this.groundY) return;
       c.save(); c.shadowColor = '#00ffff'; c.shadowBlur = 8;
-      c.fillStyle = '#252331'; c.beginPath(); c.roundRect(pl.x, pl.y, pl.w, pl.h, 4); c.fill();
+      VFX.drawMetalPanel3D(c, pl.x, pl.y, pl.w, pl.h, '#252331', 4);
       VFX.drawNeonRect(c, pl.x, pl.y, pl.w, pl.h, '#7d8cff', 4, 1);
       c.restore();
     });
@@ -279,11 +279,11 @@ class GraveKnightGame {
     const y = this.groundY, x = d.x, s = d.s;
     c.save(); c.translate(x, y); c.scale(s, s);
     if (d.type === 'tree') {
-      c.fillStyle = '#100b14'; c.fillRect(-8, -92, 16, 92);
+      VFX.drawMetalPanel3D(c, -8, -92, 16, 92, '#100b14', 5);
       c.strokeStyle = '#17101e'; c.lineWidth = 6;
       [-1, 1].forEach(side => { c.beginPath(); c.moveTo(0, -68); c.lineTo(side * 38, -104); c.stroke(); });
     } else if (d.type === 'crypt') {
-      c.fillStyle = '#191827'; c.fillRect(-28, -55, 56, 55);
+      VFX.drawMetalPanel3D(c, -28, -55, 56, 55, '#191827', 6);
       c.fillStyle = '#0b0911'; c.fillRect(-10, -32, 20, 32);
       VFX.drawNeonRect(c, -28, -55, 56, 55, '#3b405d', 3, 1);
     } else if (d.type === 'fence') {
@@ -291,9 +291,9 @@ class GraveKnightGame {
       for (let i = -30; i <= 30; i += 12) { c.beginPath(); c.moveTo(i, 0); c.lineTo(i, -38); c.stroke(); }
       c.beginPath(); c.moveTo(-36, -22); c.lineTo(36, -22); c.stroke();
     } else if (d.type === 'moonrock') {
-      c.fillStyle = '#343042'; c.beginPath(); c.moveTo(-18, 0); c.lineTo(-8, -24); c.lineTo(16, -18); c.lineTo(22, 0); c.fill();
+      VFX.drawAsteroid3D(c, 0, -12, 20, d.x * 0.01);
     } else {
-      c.fillStyle = '#2e3040'; c.fillRect(-8, -36, 16, 36);
+      VFX.drawMetalPanel3D(c, -8, -36, 16, 36, '#2e3040', 3);
       if (d.type === 'cross') { c.fillRect(-20, -28, 40, 8); }
       VFX.drawNeonRect(c, -10, -38, 20, 38, '#6f7898', 3, 1);
     }
@@ -305,10 +305,8 @@ class GraveKnightGame {
     if (p.inv > 0 && Math.floor(this.frame / 5) % 2 === 0) c.globalAlpha = 0.45;
     c.scale(p.dir, 1);
     c.fillStyle = 'rgba(0,0,0,0.45)'; c.beginPath(); c.ellipse(0, p.h + 4, 20, 6, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = p.armor > 1 ? '#b8f7ff' : '#c98a54';
-    c.shadowColor = p.armor > 1 ? '#00ffff' : '#ff8800'; c.shadowBlur = 10;
-    c.beginPath(); c.roundRect(-13, 16, 26, 28, 5); c.fill();
-    c.fillStyle = '#f3d1a0'; c.beginPath(); c.arc(0, 10, 10, 0, Math.PI * 2); c.fill();
+    VFX.drawMetalPanel3D(c, -13, 16, 26, 28, p.armor > 1 ? '#b8f7ff' : '#c98a54', 5);
+    VFX.drawOrb3D(c, 0, 10, 10, '#f3d1a0', { glow: false });
     c.fillStyle = '#23202a'; c.fillRect(-9, 7, 18, 5);
     c.strokeStyle = '#d8e8ff'; c.lineWidth = 3; c.beginPath(); c.moveTo(-10, 28); c.lineTo(-22, 42); c.moveTo(10, 28); c.lineTo(22, 42); c.stroke();
     c.fillStyle = '#402c2c'; c.fillRect(-10, 44, 7, 9); c.fillRect(4, 44, 7, 9);
@@ -318,26 +316,25 @@ class GraveKnightGame {
   drawProjectile(c, pr) {
     c.save(); c.shadowColor = '#ffff00'; c.shadowBlur = 12; c.strokeStyle = '#ffff00'; c.lineWidth = 3;
     c.beginPath(); c.moveTo(pr.x - Math.sign(pr.vx) * 12, pr.y); c.lineTo(pr.x + Math.sign(pr.vx) * 10, pr.y); c.stroke();
-    c.fillStyle = '#fff'; c.beginPath(); c.arc(pr.x, pr.y, pr.r, 0, Math.PI * 2); c.fill(); c.restore();
+    VFX.drawGem3D(c, pr.x, pr.y, pr.r + 3, '#ffff00', { spin: this.frame * 0.18 });
+    c.restore();
   }
 
   drawEnemy(c, e) {
     c.save(); c.translate(e.x, e.y); if (e.hurt > 0) c.globalAlpha = 0.5;
     if (e.type === 'bat') {
       c.fillStyle = '#2a143c'; c.shadowColor = '#ff00ff'; c.shadowBlur = 8;
-      c.beginPath(); c.ellipse(0, 10, 11, 8, 0, 0, Math.PI * 2); c.fill();
+      VFX.drawOrb3D(c, 0, 10, 12, '#2a143c');
       c.beginPath(); c.moveTo(-8, 10); c.lineTo(-30, Math.sin(this.frame * 0.3) * 10 + 8); c.lineTo(-10, 18); c.fill();
       c.beginPath(); c.moveTo(8, 10); c.lineTo(30, Math.sin(this.frame * 0.3) * 10 + 8); c.lineTo(10, 18); c.fill();
     } else if (e.type === 'hound') {
-      c.fillStyle = '#5a1c24'; c.shadowColor = '#ff3366'; c.shadowBlur = 8;
-      c.beginPath(); c.roundRect(-19, 8, 38, 20, 8); c.fill();
+      VFX.drawMetalPanel3D(c, -19, 8, 38, 20, '#5a1c24', 8);
       c.fillStyle = '#ffdd88'; c.fillRect(-14, 14, 5, 4); c.fillRect(8, 14, 5, 4);
     } else {
       const sink = Math.max(0, e.rise || 0);
       c.translate(0, sink);
-      c.fillStyle = '#7fb38a'; c.shadowColor = '#00ff88'; c.shadowBlur = 8;
-      c.beginPath(); c.roundRect(-13, 8, 26, 34, 5); c.fill();
-      c.fillStyle = '#b8f0c0'; c.beginPath(); c.arc(0, 4, 11, 0, Math.PI * 2); c.fill();
+      VFX.drawMetalPanel3D(c, -13, 8, 26, 34, '#587d61', 5);
+      VFX.drawOrb3D(c, 0, 4, 11, '#b8f0c0');
       c.fillStyle = '#1b1020'; c.fillRect(-6, 2, 4, 4); c.fillRect(4, 2, 4, 4);
     }
     c.restore();
@@ -346,9 +343,8 @@ class GraveKnightGame {
   drawBoss(c, b) {
     c.save(); c.translate(b.x, b.y); if (b.hurt > 0) c.globalAlpha = 0.55;
     VFX.radialGlow(c, 0, 45, 90, '#ff00ff', 0.3);
-    c.fillStyle = '#35104a'; c.shadowColor = '#ff00ff'; c.shadowBlur = 18;
-    c.beginPath(); c.roundRect(-b.w / 2, 18, b.w, 70, 16); c.fill();
-    c.fillStyle = '#b8f0c0'; c.beginPath(); c.arc(0, 12, 26, 0, Math.PI * 2); c.fill();
+    VFX.drawMetalPanel3D(c, -b.w / 2, 18, b.w, 70, '#35104a', 16);
+    VFX.drawOrb3D(c, 0, 12, 26, '#b8f0c0');
     c.fillStyle = '#ff3366'; c.fillRect(-12, 8, 8, 7); c.fillRect(6, 8, 8, 7);
     c.strokeStyle = '#d8e8ff'; c.lineWidth = 4; c.beginPath(); c.moveTo(-28, 45); c.lineTo(-58, 78); c.moveTo(28, 45); c.lineTo(58, 78); c.stroke();
     c.restore();
@@ -356,8 +352,8 @@ class GraveKnightGame {
 
   drawPickup(c, it) {
     const color = it.type === 'armor' ? '#00ffff' : '#ffff00';
-    VFX.drawNeonCircle(c, it.x, it.y + 8, 10, color, 2);
-    c.fillStyle = color; c.font = 'bold 12px monospace'; c.textAlign = 'center'; c.fillText(it.type === 'armor' ? 'A' : '$', it.x, it.y + 12);
+    VFX.drawGem3D(c, it.x, it.y + 8, 12, color, { spin: this.frame * 0.05 });
+    c.fillStyle = '#fff'; c.font = 'bold 11px monospace'; c.textAlign = 'center'; c.fillText(it.type === 'armor' ? 'A' : '$', it.x, it.y + 12);
   }
 
   drawHud(c, W, H) {

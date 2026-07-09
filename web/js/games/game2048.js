@@ -155,7 +155,7 @@ class Game2048 {
       const x = this.offsetX + col * (this.cell + this.gap), y = this.offsetY + r * (this.cell + this.gap);
       if (val >= 128) VFX.radialGlow(c, x + this.cell / 2, y + this.cell / 2, this.cell, t.glow, 0.2);
       c.save(); c.shadowColor = t.glow; c.shadowBlur = val >= 128 ? 15 : 8;
-      c.fillStyle = t.bg; c.beginPath(); c.roundRect(x, y, this.cell, this.cell, 8); c.fill();
+      VFX.drawMetalPanel3D(c, x, y, this.cell, this.cell, t.bg, 8);
       VFX.drawNeonRect(c, x, y, this.cell, this.cell, t.glow, 8, 1);
       c.restore();
       c.fillStyle = t.fg;

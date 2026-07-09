@@ -249,11 +249,7 @@ class SnakeGame {
       const colors = { normal: '#ff3366', speed: '#ff8800', poison: '#ff00ff' };
       const pulse = 1 + 0.15 * Math.sin(this.frame * 0.12);
       VFX.radialGlow(c, fx, fy, this.cellSize * 1.5, colors[this.food.type], 0.35);
-      c.save(); c.shadowColor = colors[this.food.type]; c.shadowBlur = 20;
-      c.fillStyle = colors[this.food.type];
-      c.beginPath(); c.arc(fx, fy, (this.cellSize / 2 - 2) * pulse, 0, Math.PI * 2); c.fill();
-      c.fillStyle = '#fff'; c.beginPath(); c.arc(fx - 2, fy - 2, 2, 0, Math.PI * 2); c.fill();
-      c.restore();
+      VFX.drawGem3D(c, fx, fy, (this.cellSize / 2 - 2) * pulse, colors[this.food.type], { spin: this.frame * 0.03 });
     }
 
     // Bonus
@@ -284,10 +280,7 @@ class SnakeGame {
       if (shielded) { const p = Math.abs(((this.frame % 15) / 7.5) - 1); color = `rgb(${Math.round(r + (255-r)*p*0.4)},${Math.round(g + (255-g)*p*0.4)},${Math.round(b + (255-b)*p*0.4)})`; }
       const sx = this.boardX + seg.x * this.cellSize + 1, sy = this.boardY + seg.y * this.cellSize + 1;
       const sw = this.cellSize - 2, sh = this.cellSize - 2;
-      c.save(); c.shadowColor = '#00ffff'; c.shadowBlur = i === 0 ? 18 : 6;
-      c.fillStyle = 'rgba(0,0,0,0.6)'; c.beginPath(); c.roundRect(sx, sy, sw, sh, 4); c.fill();
-      VFX.drawNeonRect(c, sx, sy, sw, sh, color, 4, 1.5);
-      c.restore();
+      VFX.drawBlock3D(c, sx, sy, sw, sh, color, 5);
     });
 
     // Eyes

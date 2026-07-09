@@ -182,10 +182,7 @@ class TetrisGame {
         if (isClearing && this.clearAnim > 0) { c.fillStyle = `rgba(0,255,255,${this.clearAnim / 12})`; c.fillRect(this.offsetX + col * this.cell + 1, this.offsetY + r * this.cell + 1, this.cell - 2, this.cell - 2); }
         else {
           const bx = this.offsetX + col * this.cell + 1, by = this.offsetY + r * this.cell + 1;
-          c.save(); c.shadowColor = this.board[r][col]; c.shadowBlur = 6;
-          c.fillStyle = 'rgba(0,0,0,0.5)'; c.beginPath(); c.roundRect(bx, by, this.cell - 2, this.cell - 2, 3); c.fill();
-          VFX.drawNeonRect(c, bx, by, this.cell - 2, this.cell - 2, this.board[r][col], 3, 1);
-          c.restore();
+          VFX.drawBlock3D(c, bx, by, this.cell - 2, this.cell - 2, this.board[r][col], 4);
         }
       }
 
@@ -207,10 +204,7 @@ class TetrisGame {
       this.piece.shape.forEach((row, r) => row.forEach((cell, col) => {
         if (cell) {
           const bx = this.offsetX + (this.piece.x + col) * this.cell + 1, by = this.offsetY + (this.piece.y + r) * this.cell + 1;
-          c.save(); c.shadowColor = this.piece.color; c.shadowBlur = 10;
-          c.fillStyle = 'rgba(0,0,0,0.5)'; c.beginPath(); c.roundRect(bx, by, this.cell - 2, this.cell - 2, 3); c.fill();
-          VFX.drawNeonRect(c, bx, by, this.cell - 2, this.cell - 2, this.piece.color, 3, 1.5);
-          c.restore();
+          VFX.drawBlock3D(c, bx, by, this.cell - 2, this.cell - 2, this.piece.color, 4);
         }
       }));
     }
@@ -225,13 +219,13 @@ class TetrisGame {
     this.queue.slice(0, 3).forEach((piece, i) => {
       const y0 = 60 + i * 52;
       piece.shape.forEach((row, r) => row.forEach((cell, col) => {
-        if (cell) { c.save(); c.globalAlpha = i === 0 ? 1 : 0.65; c.shadowColor = piece.color; c.shadowBlur = 6; VFX.drawNeonRect(c, panelX + col * 16, y0 + r * 16, 14, 14, piece.color, 3, 1); c.restore(); }
+        if (cell) { c.save(); c.globalAlpha = i === 0 ? 1 : 0.65; VFX.drawBlock3D(c, panelX + col * 16, y0 + r * 16, 14, 14, piece.color, 3); c.restore(); }
       }));
     });
 
     VFX.glowText(c, 'HOLD', panelX, 225, { font: 'bold 13px monospace', color: this.canHold ? '#ff00ff' : '#444', align: 'left' });
     if (this.holdPiece) this.holdPiece.shape.forEach((row, r) => row.forEach((cell, col) => {
-      if (cell) { c.save(); c.globalAlpha = this.canHold ? 1 : 0.3; VFX.drawNeonRect(c, panelX + col * 18, 235 + r * 18, 16, 16, this.holdPiece.color, 3, 1); c.restore(); }
+      if (cell) { c.save(); c.globalAlpha = this.canHold ? 1 : 0.3; VFX.drawBlock3D(c, panelX + col * 18, 235 + r * 18, 16, 16, this.holdPiece.color, 3); c.restore(); }
     }));
 
     VFX.drawLEDText(c, `${this.score}`, panelX + 95, 330, '#00ffff', 22);

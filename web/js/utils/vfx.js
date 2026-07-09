@@ -77,6 +77,137 @@ const VFX = {
     ctx.restore();
   },
 
+  drawGem3D(ctx, x, y, r, color, opts = {}) {
+    const { spin = 0, core = '#ffffff' } = opts;
+    const [cr, cg, cb] = this.hexToRgb(color);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(spin);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = r * 1.6;
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.45, 1, 0, 0, r);
+    g.addColorStop(0, core);
+    g.addColorStop(0.28, `rgb(${Math.min(255, cr + 80)},${Math.min(255, cg + 80)},${Math.min(255, cb + 80)})`);
+    g.addColorStop(0.68, color);
+    g.addColorStop(1, `rgb(${Math.max(0, cr - 70)},${Math.max(0, cg - 70)},${Math.max(0, cb - 70)})`);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.lineTo(r * 0.86, -r * 0.28);
+    ctx.lineTo(r * 0.58, r * 0.82);
+    ctx.lineTo(-r * 0.58, r * 0.82);
+    ctx.lineTo(-r * 0.86, -r * 0.28);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.85)`;
+    ctx.lineWidth = Math.max(1, r * 0.08);
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+    ctx.beginPath(); ctx.moveTo(0, -r); ctx.lineTo(0, r * 0.78); ctx.moveTo(-r * 0.82, -r * 0.25); ctx.lineTo(r * 0.82, -r * 0.25); ctx.stroke();
+    ctx.restore();
+  },
+
+  drawOrb3D(ctx, x, y, r, color, opts = {}) {
+    const { glow = true, highlight = '#ffffff' } = opts;
+    const [cr, cg, cb] = this.hexToRgb(color);
+    ctx.save();
+    if (glow) { ctx.shadowColor = color; ctx.shadowBlur = r * 1.7; }
+    const g = ctx.createRadialGradient(x - r * 0.38, y - r * 0.45, r * 0.08, x, y, r);
+    g.addColorStop(0, highlight);
+    g.addColorStop(0.22, `rgb(${Math.min(255, cr + 70)},${Math.min(255, cg + 70)},${Math.min(255, cb + 70)})`);
+    g.addColorStop(0.68, color);
+    g.addColorStop(1, `rgb(${Math.max(0, cr - 85)},${Math.max(0, cg - 85)},${Math.max(0, cb - 85)})`);
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(${cr},${cg},${cb},0.65)`;
+    ctx.lineWidth = Math.max(1, r * 0.08);
+    ctx.stroke();
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(x - r * 0.32, y - r * 0.38, r * 0.18, r * 0.1, -0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+
+  drawMetalPanel3D(ctx, x, y, w, h, color = '#243040', radius = 8) {
+    const [r, g, b] = this.hexToRgb(color);
+    ctx.save();
+    ctx.shadowColor = `rgba(${r},${g},${b},0.65)`;
+    ctx.shadowBlur = 16;
+    const base = ctx.createLinearGradient(x, y, x + w, y + h);
+    base.addColorStop(0, `rgb(${Math.min(255, r + 55)},${Math.min(255, g + 55)},${Math.min(255, b + 55)})`);
+    base.addColorStop(0.45, color);
+    base.addColorStop(1, `rgb(${Math.max(0, r - 60)},${Math.max(0, g - 60)},${Math.max(0, b - 60)})`);
+    ctx.fillStyle = base;
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, radius); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.12)';
+    ctx.beginPath(); ctx.roundRect(x + 3, y + 3, w - 6, h * 0.28, [radius, radius, 2, 2]); ctx.fill();
+    ctx.restore();
+  },
+
+  drawShip3D(ctx, x, y, size, color = '#00ffff', angle = 0) {
+    const [r, g, b] = this.hexToRgb(color);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.shadowColor = color;
+    ctx.shadowBlur = size * 0.7;
+    const body = ctx.createLinearGradient(0, -size, 0, size);
+    body.addColorStop(0, '#ffffff');
+    body.addColorStop(0.22, `rgb(${Math.min(255, r + 80)},${Math.min(255, g + 80)},${Math.min(255, b + 80)})`);
+    body.addColorStop(0.72, color);
+    body.addColorStop(1, `rgb(${Math.max(0, r - 90)},${Math.max(0, g - 90)},${Math.max(0, b - 90)})`);
+    ctx.fillStyle = body;
+    ctx.beginPath();
+    ctx.moveTo(0, -size);
+    ctx.lineTo(size * 0.72, size * 0.62);
+    ctx.lineTo(size * 0.22, size * 0.42);
+    ctx.lineTo(0, size * 0.95);
+    ctx.lineTo(-size * 0.22, size * 0.42);
+    ctx.lineTo(-size * 0.72, size * 0.62);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = Math.max(1, size * 0.06);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(10,30,60,0.8)';
+    ctx.beginPath(); ctx.ellipse(0, -size * 0.2, size * 0.22, size * 0.34, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff8800';
+    ctx.shadowColor = '#ff8800';
+    ctx.shadowBlur = size * 0.8;
+    ctx.beginPath(); ctx.moveTo(-size * 0.18, size * 0.7); ctx.lineTo(0, size * 1.28); ctx.lineTo(size * 0.18, size * 0.7); ctx.fill();
+    ctx.restore();
+  },
+
+  drawAsteroid3D(ctx, x, y, r, rot = 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.shadowColor = '#9a7b61';
+    ctx.shadowBlur = r * 0.8;
+    const g = ctx.createRadialGradient(-r * 0.35, -r * 0.45, 1, 0, 0, r);
+    g.addColorStop(0, '#d6c0a4');
+    g.addColorStop(0.35, '#8d705c');
+    g.addColorStop(1, '#2e2530');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    for (let i = 0; i < 9; i++) {
+      const a = i / 9 * Math.PI * 2;
+      const rr = r * (0.72 + 0.28 * Math.sin(i * 2.1 + rot));
+      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    [[-0.25, -0.2, 0.16], [0.25, 0.12, 0.13], [0.02, 0.38, 0.1]].forEach(([cx, cy, cr]) => {
+      ctx.beginPath(); ctx.arc(cx * r, cy * r, cr * r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+  },
+
   drawCar(ctx, x, y, w, h, color, angle = 0) {
     ctx.save(); ctx.translate(x, y); ctx.rotate(angle);
     const [r, g, b] = this.hexToRgb(color);

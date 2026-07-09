@@ -129,16 +129,13 @@ class PongGame {
     });
 
     // Ball
-    VFX.radialGlow(c, this.ball.x + this.ballSize / 2, this.ball.y + this.ballSize / 2, 40, '#fff', 0.25);
-    c.save(); c.shadowColor = '#fff'; c.shadowBlur = 25;
-    c.fillStyle = '#fff';
-    c.beginPath(); c.arc(this.ball.x + this.ballSize / 2, this.ball.y + this.ballSize / 2, this.ballSize / 2, 0, Math.PI * 2); c.fill();
-    c.restore();
+    VFX.radialGlow(c, this.ball.x + this.ballSize / 2, this.ball.y + this.ballSize / 2, 44, '#fff', 0.28);
+    VFX.drawOrb3D(c, this.ball.x + this.ballSize / 2, this.ball.y + this.ballSize / 2, this.ballSize / 2 + 2, '#ffffff', { glow: true });
 
     // Paddles
     [{ p: this.p1, col: this.p1.color }, { p: this.p2, col: this.p2.color }].forEach(({ p, col }) => {
       c.save(); c.shadowColor = col; c.shadowBlur = 20;
-      c.fillStyle = 'rgba(0,0,0,0.5)'; c.beginPath(); c.roundRect(p.x, p.y, this.paddleW, this.paddleH, 6); c.fill();
+      VFX.drawMetalPanel3D(c, p.x, p.y, this.paddleW, this.paddleH, col, 6);
       VFX.drawNeonRect(c, p.x, p.y, this.paddleW, this.paddleH, col, 6, 1.5);
       c.restore();
     });
