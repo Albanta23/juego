@@ -39,10 +39,10 @@ class CarrerasGame {
   }
 
   reset() {
-    this.score = 0; this.speed = 0; this.maxSpeed = 14;
-    this.accel = 0.18; this.friction = 0.025;
+    this.score = 0; this.speed = 0; this.maxSpeed = 12;
+    this.accel = 0.16; this.friction = 0.025;
     this.x = this.W / 2; this.nitro = 100; this.nitroActive = false;
-    this.health = 3; this.distance = 0; this.level = 1; this.combo = 1;
+    this.health = 5; this.distance = 0; this.level = 1; this.combo = 1;
     this.zoneIndex = 0; this.zoneBannerTimer = 140;
     this.crashCooldown = 0; this.nearMisses = 0;
     this.shield = false; this.shieldTimer = 0;
@@ -54,15 +54,15 @@ class CarrerasGame {
 
   genEnemies() {
     const colors = ['#ff3366','#ffaa00','#00ffff','#ff00ff','#00ff88','#ffff00','#ff6600','#aa44ff'];
-    return Array.from({ length: 14 }, (_, i) => ({
+    return Array.from({ length: 8 }, (_, i) => ({
       lane: [-1, 0, 1][Math.floor(Math.random() * 3)],
-      z: 320 + i * 115 + Math.random() * 100,
-      speed: 2.5 + Math.random() * 3.5,
+      z: 620 + i * 210 + Math.random() * 180,
+      speed: 1.8 + Math.random() * 2.0,
       color: colors[i % colors.length],
       w: 36,
       h: 60,
       scoredNear: false,
-      type: Math.random() > 0.72 ? 'truck' : 'car'
+      type: Math.random() > 0.88 ? 'truck' : 'car'
     }));
   }
 
@@ -114,15 +114,15 @@ class CarrerasGame {
     const nextZone = Math.floor(this.distance / this.zoneLength) % this.zones.length;
     if (nextZone !== this.zoneIndex) { this.zoneIndex = nextZone; this.zoneBannerTimer = 180; window.audioManager.playLevelUp(); }
     if (this.zoneBannerTimer > 0) this.zoneBannerTimer--;
-    this.level = 1 + Math.floor(this.distance / 500);
-    this.maxSpeed = Math.min(22, 14 + this.level * 0.7);
+    this.level = 1 + Math.floor(this.distance / 700);
+    this.maxSpeed = Math.min(21, 12 + this.level * 0.75);
     this.curveOffset = Math.sin(this.roadOffset * 0.003) * 30;
 
     if (this.speed > 6 && this.frame % 2 === 0) this.speedLines.push({ x: Math.random() * this.W, y: this.H, vy: this.speed * 8, life: 1, len: 10 + this.speed * 3 });
 
     this.enemies.forEach(e => {
-      e.z -= Math.max(1.6, this.speed * 0.42 - e.speed * 0.16);
-      if (e.z < -80) this.respawnEnemy(e, this.viewDistance + 120 + Math.random() * 360);
+      e.z -= Math.max(1.2, this.speed * 0.36 - e.speed * 0.18);
+      if (e.z < -80) this.respawnEnemy(e, this.viewDistance + 260 + Math.random() * (520 - Math.min(230, this.level * 24)));
       const pos = this.projectRoad(e.lane, e.z);
       e.screenX = pos.x; e.screenY = pos.y; e.screenScale = pos.scale;
       if (Math.abs(this.x - pos.x) < 32 + pos.scale * 18 && Math.abs((this.H - 130) - pos.y) < 38 + pos.scale * 30) {
@@ -130,7 +130,7 @@ class CarrerasGame {
           this.crashCooldown = 1.2;
           if (this.shield) { this.shield = false; window.audioManager.playHit(); this.particles.emit(this.x, this.H - 130, 20, ['#00ffff','#fff']); this.shake.trigger(6, 200); }
           else {
-            this.health--; this.combo = 1; this.speed = Math.max(2, this.speed * 0.25);
+            this.health--; this.combo = 1; this.speed = Math.max(3, this.speed * 0.38);
             window.audioManager.playCarHit(); this.particles.emit(this.x, this.H - 130, 30, ['#ff3366','#ff00ff','#fff'], [100, 300], [0.4, 1.0]); this.shake.trigger(10, 300);
             if (this.health <= 0) { this.state = 'gameover'; window.gameStorage.setHighScore('carreras', this.score); }
           }
@@ -168,9 +168,9 @@ class CarrerasGame {
   respawnEnemy(e, z) {
     e.lane = [-1, 0, 1][Math.floor(Math.random() * 3)];
     e.z = z;
-    e.speed = 2.5 + Math.random() * 3.8 + Math.min(2.2, this.level * 0.15);
+    e.speed = 1.8 + Math.random() * 2.2 + Math.min(2.0, Math.max(0, this.level - 1) * 0.16);
     e.scoredNear = false;
-    e.type = Math.random() > 0.72 ? 'truck' : 'car';
+    e.type = Math.random() > Math.max(0.65, 0.92 - this.level * 0.025) ? 'truck' : 'car';
   }
 
   respawnPowerup(p, z) {

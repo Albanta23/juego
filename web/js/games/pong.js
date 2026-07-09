@@ -6,7 +6,7 @@ class PongGame {
     this.running = false; this.frame = 0;
     this.state = 'menu'; this.vsAI = true; this.scoreToWin = 7;
     this.serveTimer = 0; this.lastScorer = 0;
-    this.paddleW = 14; this.paddleH = Math.min(80, this.H * 0.18);
+    this.paddleW = 14; this.paddleH = Math.min(96, this.H * 0.22);
     this.ballSize = 12;
     this.particles = new VFX.particles();
     this.shake = new VFX.screenShake();
@@ -20,8 +20,8 @@ class PongGame {
   reset() {
     this.p1 = { x: 30, y: this.H / 2 - this.paddleH / 2, score: 0, color: '#00ffff' };
     this.p2 = { x: this.W - 44, y: this.H / 2 - this.paddleH / 2, score: 0, color: '#ff00ff' };
-    this.ball = { x: this.W / 2, y: this.H / 2, vx: 5 * (Math.random() > 0.5 ? 1 : -1), vy: 3 * (Math.random() > 0.5 ? 1 : -1), speed: 5 };
-    this.serveTimer = 45; this.lastScorer = 0;
+    this.ball = { x: this.W / 2, y: this.H / 2, vx: 3.8 * (Math.random() > 0.5 ? 1 : -1), vy: 2.2 * (Math.random() > 0.5 ? 1 : -1), speed: 3.8 };
+    this.serveTimer = 70; this.lastScorer = 0;
     this.trail = []; this.state = 'playing';
     window.updateScore('0-0');
   }
@@ -43,14 +43,14 @@ class PongGame {
   update(dt) {
     if (this.state !== 'playing') return;
     this.shake.update(dt);
-    const speed = 7;
+    const speed = 7.4;
     if (this.keys['w'] || (this.vsAI && this.keys['ArrowUp'])) this.p1.y = Math.max(0, this.p1.y - speed);
     if (this.keys['s'] || (this.vsAI && this.keys['ArrowDown'])) this.p1.y = Math.min(this.H - this.paddleH, this.p1.y + speed);
     if (this.vsAI) {
       const lead = this.ball.vx > 0 ? Math.max(-45, Math.min(45, this.ball.vy * 5)) : 0;
-      const error = Math.sin(this.frame * 0.025) * 26;
+      const error = Math.sin(this.frame * 0.025) * (34 - Math.min(16, (this.p1.score + this.p2.score) * 1.5));
       const t = this.ball.y + lead + error - this.paddleH / 2;
-      const aiSpeed = 3.6 + Math.min(2.5, Math.abs(this.ball.vx) * 0.18);
+      const aiSpeed = 2.8 + Math.min(2.8, Math.abs(this.ball.vx) * 0.18) + Math.min(1.2, (this.p1.score + this.p2.score) * 0.08);
       this.p2.y += Math.max(-aiSpeed, Math.min(aiSpeed, t - this.p2.y));
       this.p2.y = Math.max(0, Math.min(this.H - this.paddleH, this.p2.y));
     }
@@ -65,14 +65,14 @@ class PongGame {
 
     const bx = this.ball.x, by = this.ball.y;
     if (bx <= this.p1.x + this.paddleW && by + this.ballSize >= this.p1.y && by <= this.p1.y + this.paddleH && this.ball.vx < 0) {
-      this.ball.vx = Math.min(12, Math.abs(this.ball.vx) * 1.06); const hp = (by + this.ballSize / 2 - this.p1.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 11;
-      this.ball.speed = Math.min(12, this.ball.speed + 0.3);
+      this.ball.vx = Math.min(11.5, Math.abs(this.ball.vx) * 1.045); const hp = (by + this.ballSize / 2 - this.p1.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 9.2;
+      this.ball.speed = Math.min(11.5, this.ball.speed + 0.22);
       window.audioManager.playHit();
       this.particles.emit(this.p1.x + this.paddleW, by + this.ballSize / 2, 12, ['#00ffff','#fff','#00ff88']);
     }
     if (bx + this.ballSize >= this.p2.x && by + this.ballSize >= this.p2.y && by <= this.p2.y + this.paddleH && this.ball.vx > 0) {
-      this.ball.vx = -Math.min(12, Math.abs(this.ball.vx) * 1.06); const hp = (by + this.ballSize / 2 - this.p2.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 11;
-      this.ball.speed = Math.min(12, this.ball.speed + 0.3);
+      this.ball.vx = -Math.min(11.5, Math.abs(this.ball.vx) * 1.045); const hp = (by + this.ballSize / 2 - this.p2.y) / this.paddleH; this.ball.vy = (hp - 0.5) * 9.2;
+      this.ball.speed = Math.min(11.5, this.ball.speed + 0.22);
       window.audioManager.playHit();
       this.particles.emit(this.p2.x, by + this.ballSize / 2, 12, ['#ff00ff','#fff','#ff3366']);
     }
@@ -96,9 +96,10 @@ class PongGame {
   }
 
   resetBall(dir) {
-    this.ball = { x: this.W / 2, y: this.H / 2, speed: 5, vx: 5 * dir, vy: 3 * (Math.random() > 0.5 ? 1 : -1) };
+    const rallySpeed = Math.min(5.8, 3.8 + (this.p1.score + this.p2.score) * 0.22);
+    this.ball = { x: this.W / 2, y: this.H / 2, speed: rallySpeed, vx: rallySpeed * dir, vy: 2.2 * (Math.random() > 0.5 ? 1 : -1) };
     this.trail = [];
-    this.serveTimer = 45;
+    this.serveTimer = 70;
   }
 
   draw() {

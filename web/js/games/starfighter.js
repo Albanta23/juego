@@ -21,10 +21,10 @@ class StarfighterGame {
   }
 
   reset() {
-    this.score = 0; this.wave = 1; this.spawnTimer = 40; this.boss = null; this.bossScoreTarget = 1800;
+    this.score = 0; this.wave = 1; this.spawnTimer = 95; this.boss = null; this.bossScoreTarget = 2600;
     this.weapon = 'DUAL'; this.weaponTimer = 0; this.bombs = 2; this.patternIndex = 0;
     this.distance = 0; this.sector = 0; this.sectorLength = 2600; this.warpTimer = 0; this.sectorBanner = 120;
-    this.player = { x: this.W / 2, y: this.H - 78, vx: 0, vy: 0, shield: 100, lives: 3, fireCd: 0, inv: 0 };
+    this.player = { x: this.W / 2, y: this.H - 78, vx: 0, vy: 0, shield: 120, lives: 4, fireCd: 0, inv: 0 };
     this.bullets = []; this.enemyShots = []; this.enemies = []; this.asteroids = []; this.pickups = [];
     this.nebulaHue = Math.random() * 360;
     window.updateScore(0);
@@ -121,7 +121,7 @@ class StarfighterGame {
     this.spawnTimer--;
     if (this.spawnTimer <= 0) {
       this.spawnWaveObject();
-      this.spawnTimer = Math.max(13, 48 - this.wave * 3);
+      this.spawnTimer = Math.max(24, 92 - this.wave * 6);
     }
     if (!this.boss && this.score >= this.bossScoreTarget && this.wave > 1) this.spawnBoss();
 
@@ -133,15 +133,15 @@ class StarfighterGame {
       e.y += e.vy;
       e.fire--;
       if (e.fire <= 0) {
-        e.fire = 70 + Math.random() * 60;
-        this.enemyShots.push({ x: e.x, y: e.y + 20, vx: (this.player.x - e.x) * 0.012, vy: 4.4, life: 120, r: 4 });
+        e.fire = Math.max(42, 110 - this.wave * 5) + Math.random() * 70;
+        this.enemyShots.push({ x: e.x, y: e.y + 20, vx: (this.player.x - e.x) * 0.009, vy: 3.4 + Math.min(1.4, this.wave * 0.12), life: 120, r: 4 });
       }
     });
     if (this.boss) this.updateBoss();
 
     this.handleCollisions();
     this.cleanup();
-    this.wave = 1 + Math.floor(this.score / 900);
+    this.wave = 1 + Math.floor(this.score / 1400);
     window.updateScore(this.score);
   }
 
@@ -164,46 +164,50 @@ class StarfighterGame {
   }
 
   spawnWaveObject() {
+    const activeThreats = this.asteroids.length + this.enemies.length + (this.boss ? 3 : 0);
+    const maxThreats = Math.min(12, 3 + this.wave * 2);
+    if (activeThreats >= maxThreats) return;
     const pattern = this.patternIndex++ % 6;
     if (pattern === 0) {
-      const count = Math.min(6, 3 + Math.floor(this.wave / 2));
+      const count = Math.min(5, 1 + Math.ceil(this.wave / 2));
       for (let i = 0; i < count; i++) this.spawnAsteroid(45 + i * ((this.W - 90) / Math.max(1, count - 1)), -40 - Math.random() * 110, 0.6 - Math.random() * 1.2);
     } else if (pattern === 1) {
-      const count = Math.min(5, 2 + Math.floor(this.wave / 2));
+      const count = Math.min(4, 1 + Math.floor(this.wave / 2));
       for (let i = 0; i < count; i++) this.spawnEnemy(70 + i * ((this.W - 140) / Math.max(1, count - 1)), -45 - i * 16, 'scout');
     } else if (pattern === 2) {
-      this.spawnEnemy(55 + Math.random() * (this.W - 110), -48, 'hunter');
-      for (let i = 0; i < 2; i++) this.spawnAsteroid(35 + Math.random() * (this.W - 70), -70 - i * 80, (Math.random() - 0.5) * 1.8);
-    } else if (pattern === 3 && this.wave > 2) {
+      if (this.wave > 1) this.spawnEnemy(55 + Math.random() * (this.W - 110), -48, 'hunter');
+      const rocks = this.wave < 3 ? 1 : 2;
+      for (let i = 0; i < rocks; i++) this.spawnAsteroid(35 + Math.random() * (this.W - 70), -70 - i * 80, (Math.random() - 0.5) * 1.8);
+    } else if (pattern === 3 && this.wave > 4) {
       this.spawnEnemy(this.W * 0.25, -52, 'elite');
       this.spawnEnemy(this.W * 0.75, -90, 'elite');
     } else {
-      if (Math.random() < 0.55) this.spawnAsteroid(30 + Math.random() * (this.W - 60), -50, (Math.random() - 0.5) * 1.8);
-      else this.spawnEnemy(40 + Math.random() * (this.W - 80), -45, Math.random() < 0.35 ? 'hunter' : 'scout');
+      if (Math.random() < (this.wave < 3 ? 0.72 : 0.55)) this.spawnAsteroid(30 + Math.random() * (this.W - 60), -50, (Math.random() - 0.5) * 1.4);
+      else this.spawnEnemy(40 + Math.random() * (this.W - 80), -45, this.wave > 2 && Math.random() < 0.28 ? 'hunter' : 'scout');
     }
   }
 
   spawnAsteroid(x, y, vx) {
     const r = 16 + Math.random() * 28;
-    this.asteroids.push({ x, y, r, vx, vy: 2.0 + Math.random() * 2.2 + this.wave * 0.12, hp: Math.ceil(r / 14), rot: Math.random() * 9, spin: (Math.random() - 0.5) * 0.05 });
+    this.asteroids.push({ x, y, r, vx, vy: 1.45 + Math.random() * 1.5 + this.wave * 0.14, hp: Math.ceil(r / 16), rot: Math.random() * 9, spin: (Math.random() - 0.5) * 0.05 });
   }
 
   spawnEnemy(x, y, type = 'scout') {
     const stats = {
-      scout: { hp: 3, vy: 1.8, sway: 1.8, fire: 72, color: '#ff3366' },
-      hunter: { hp: 4, vy: 2.35, sway: 2.7, fire: 48, color: '#ffaa00' },
-      elite: { hp: 7, vy: 1.55, sway: 3.2, fire: 34, color: '#ff00ff' }
+      scout: { hp: 2, vy: 1.25, sway: 1.5, fire: 120, color: '#ff3366' },
+      hunter: { hp: 3, vy: 1.75, sway: 2.1, fire: 92, color: '#ffaa00' },
+      elite: { hp: 6, vy: 1.35, sway: 2.8, fire: 68, color: '#ff00ff' }
     }[type];
     this.enemies.push({
       x, y, type, w: type === 'elite' ? 48 : 38, h: type === 'elite' ? 44 : 38,
-      vy: stats.vy + this.wave * 0.12, hp: stats.hp + Math.floor(this.wave / 3),
+      vy: stats.vy + Math.min(1.1, this.wave * 0.1), hp: stats.hp + Math.floor(this.wave / 4),
       phase: Math.random() * 100, sway: stats.sway, fire: stats.fire + Math.random() * 55,
       color: stats.color
     });
   }
 
   spawnBoss() {
-    const hp = 58 + this.wave * 10;
+    const hp = 48 + this.wave * 8;
     this.boss = { x: this.W / 2, y: 80, w: Math.min(190, this.W * 0.36), h: 92, hp, maxHp: hp, phase: 0, fire: 30, hurt: 0, attack: 0 };
     window.audioManager.playLevelUp();
   }
@@ -217,18 +221,18 @@ class StarfighterGame {
     if (b.hurt > 0) b.hurt--;
     b.fire--;
     if (b.fire <= 0) {
-      b.fire = b.attack === 3 ? 11 : b.attack === 2 ? 15 : 20;
+      b.fire = b.attack === 3 ? 18 : b.attack === 2 ? 24 : 32;
       if (b.attack === 1) {
         for (let i = -2; i <= 2; i++) this.enemyShots.push({ x: b.x + i * 22, y: b.y + 45, vx: i * 0.9, vy: 4.2, life: 130, r: 5 });
       } else if (b.attack === 2) {
         const angle = this.frame * 0.1;
         for (let i = 0; i < 8; i++) {
           const a = angle + i * Math.PI / 4;
-          this.enemyShots.push({ x: b.x, y: b.y + 30, vx: Math.cos(a) * 2.3, vy: Math.abs(Math.sin(a)) * 2.1 + 2.6, life: 140, r: 4 });
+          this.enemyShots.push({ x: b.x, y: b.y + 30, vx: Math.cos(a) * 1.8, vy: Math.abs(Math.sin(a)) * 1.6 + 2.3, life: 140, r: 4 });
         }
       } else {
-        for (let i = -3; i <= 3; i++) this.enemyShots.push({ x: b.x + i * 18, y: b.y + 42, vx: i * 0.55 + Math.sin(this.frame * 0.08) * 0.8, vy: 5.0, life: 120, r: 5 });
-        if (this.frame % 120 === 0) this.spawnEnemy(b.x + (Math.random() < 0.5 ? -70 : 70), b.y + 42, 'hunter');
+        for (let i = -2; i <= 2; i++) this.enemyShots.push({ x: b.x + i * 20, y: b.y + 42, vx: i * 0.48 + Math.sin(this.frame * 0.08) * 0.55, vy: 4.3, life: 120, r: 5 });
+        if (this.frame % 180 === 0 && this.enemies.length < 4) this.spawnEnemy(b.x + (Math.random() < 0.5 ? -70 : 70), b.y + 42, 'hunter');
       }
     }
   }
@@ -255,10 +259,10 @@ class StarfighterGame {
       }
     });
 
-    this.asteroids.forEach(a => { if (Math.hypot(p.x - a.x, p.y - a.y) < a.r + 18) this.damagePlayer(22); });
-    this.enemies.forEach(e => { if (this.rectCircle(e, p.x, p.y, 18)) this.damagePlayer(28); });
-    this.enemyShots.forEach(s => { if (s.life > 0 && Math.hypot(p.x - s.x, p.y - s.y) < s.r + 16) { s.life = 0; this.damagePlayer(16); } });
-    if (this.boss && this.rectCircle(this.boss, p.x, p.y, 18)) this.damagePlayer(35);
+    this.asteroids.forEach(a => { if (Math.hypot(p.x - a.x, p.y - a.y) < a.r + 18) this.damagePlayer(16); });
+    this.enemies.forEach(e => { if (this.rectCircle(e, p.x, p.y, 18)) this.damagePlayer(20); });
+    this.enemyShots.forEach(s => { if (s.life > 0 && Math.hypot(p.x - s.x, p.y - s.y) < s.r + 16) { s.life = 0; this.damagePlayer(10); } });
+    if (this.boss && this.rectCircle(this.boss, p.x, p.y, 18)) this.damagePlayer(25);
     this.pickups.forEach(it => {
       it.y += 2.2; it.phase += 0.08;
       if (Math.hypot(p.x - it.x, p.y - it.y) < 24) {
@@ -268,7 +272,7 @@ class StarfighterGame {
   }
 
   applyPickup(type = 'shield') {
-    if (type === 'shield') this.player.shield = Math.min(100, this.player.shield + 30);
+    if (type === 'shield') this.player.shield = Math.min(120, this.player.shield + 35);
     if (type === 'bomb') this.bombs = Math.min(5, this.bombs + 1);
     if (type === 'spread' || type === 'laser' || type === 'rapid') {
       this.weapon = type.toUpperCase();
@@ -308,7 +312,7 @@ class StarfighterGame {
     p.inv = 50; p.shield -= amount; this.shake.trigger(9, 220); window.audioManager.playCarHit();
     this.particles.emit(p.x, p.y, 22, ['#00ffff','#ff3366','#fff'], [70, 180], [0.25, 0.62]);
     if (p.shield <= 0) {
-      p.lives--; p.shield = 100;
+      p.lives--; p.shield = 120;
       if (p.lives <= 0) { this.state = 'gameover'; window.gameStorage.setHighScore('starfighter', this.score); window.audioManager.playGameOver(); }
     }
   }
@@ -468,7 +472,7 @@ class StarfighterGame {
     VFX.drawLEDText(c, `${this.score}`, 128, 30, '#00ffff', 22);
     VFX.glowText(c, `LIVES ${this.player.lives}  WAVE ${this.wave}`, 20, 58, { font: '11px monospace', color: '#ffff00', align: 'left' });
     c.fillStyle = 'rgba(255,255,255,0.07)'; c.beginPath(); c.roundRect(20, 68, 145, 10, 5); c.fill();
-    VFX.drawNeonRect(c, 20, 68, Math.max(2, this.player.shield * 1.45), 10, this.player.shield < 35 ? '#ff3366' : '#00ffff', 5, 1);
+    VFX.drawNeonRect(c, 20, 68, Math.max(2, (this.player.shield / 120) * 145), 10, this.player.shield < 35 ? '#ff3366' : '#00ffff', 5, 1);
     VFX.glowText(c, 'SHIELD', 194, 73, { font: '10px monospace', color: '#888', align: 'left' });
     VFX.glowText(c, `WEAPON ${this.weapon}  BOMB ${this.bombs}`, 20, 94, { font: '11px monospace', color: this.weapon === 'DUAL' ? '#888' : '#00ff88', align: 'left' });
     const sector = this.sectors[this.sector];

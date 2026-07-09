@@ -13,7 +13,7 @@ class SnakeGame {
     this.stars = VFX.generateStars(60);
     this.state = 'start'; this.snake = null; this.food = null;
     this.bonusFood = null; this.powerups = []; this.activePowerups = [];
-    this.obstacles = []; this.level = 1; this.fps = 10; this.lastMove = 0;
+    this.obstacles = []; this.level = 1; this.fps = 7; this.lastMove = 0;
     this.queuedDir = null;
     this.animSnake = this.createAnimSnake();
     this.boundKeyDown = this.onKeyDown.bind(this);
@@ -35,7 +35,7 @@ class SnakeGame {
   reset() {
     this.snake = { body: [{ x: Math.floor(this.cols / 2), y: Math.floor(this.rows / 2) }, { x: Math.floor(this.cols / 2) - 1, y: Math.floor(this.rows / 2) }], dir: { x: 1, y: 0 }, grow: false, invincible: 0 };
     this.queuedDir = null;
-    this.score = 0; this.combo = 0; this.level = 1; this.fps = 10;
+    this.score = 0; this.combo = 0; this.level = 1; this.fps = 7;
     this.food = this.spawnFood(); this.bonusFood = null;
     this.powerups = []; this.activePowerups = []; this.obstacles = [];
     this.trail = []; this.flashAlpha = 0;
@@ -50,7 +50,8 @@ class SnakeGame {
     if (this.bonusFood) occ.add(`${this.bonusFood.x},${this.bonusFood.y}`);
     let x, y, att = 0;
     do { x = Math.floor(Math.random() * this.cols); y = Math.floor(Math.random() * this.rows); att++; } while (occ.has(`${x},${y}`) && att < 200);
-    return { x, y, type: ['normal','normal','normal','speed','poison'][Math.floor(Math.random() * 5)] };
+    const pool = this.level < 3 ? ['normal','normal','normal','normal','speed'] : ['normal','normal','normal','speed','poison'];
+    return { x, y, type: pool[Math.floor(Math.random() * pool.length)] };
   }
 
   spawnBonus() {
@@ -75,7 +76,7 @@ class SnakeGame {
 
   spawnObstacles() {
     this.obstacles = [];
-    const count = Math.min(2 + this.level, 12);
+    const count = Math.min(Math.max(0, this.level - 2) * 2, 10);
     const head = this.snake.body[0];
     for (let i = 0; i < count; i++) {
       let att = 0, x, y;
@@ -150,14 +151,14 @@ class SnakeGame {
     if (this.combo > 1) window.audioManager.playCombo(this.combo);
     window.updateScore(this.score);
 
-    const nl = Math.min(1 + Math.floor(this.score / 5), 10);
-    if (nl > this.level) { this.level = nl; this.fps = 8 + this.level * 2; window.audioManager.playLevelUp(); if (this.level % 2 === 0) this.spawnObstacles(); }
+    const nl = Math.min(1 + Math.floor(this.score / 8), 10);
+    if (nl > this.level) { this.level = nl; this.fps = Math.min(18, 6 + this.level * 1.35); window.audioManager.playLevelUp(); if (this.level >= 3 && this.level % 2 === 1) this.spawnObstacles(); }
 
     this.activePowerups = this.activePowerups.filter(p => performance.now() - p.start < p.dur);
-    if (!this.bonusFood && Math.random() < 0.01) this.spawnBonus();
-    if (!this.powerups.length && Math.random() < 0.005) this.spawnPowerup();
-    if (this.bonusFood && performance.now() - this.bonusFood.spawn > this.bonusFood.life) this.bonusFood = null;
-    this.powerups = this.powerups.filter(p => performance.now() - p.spawn < 6000);
+    if (!this.bonusFood && Math.random() < 0.014) this.spawnBonus();
+    if (!this.powerups.length && Math.random() < 0.008) this.spawnPowerup();
+    if (this.bonusFood && performance.now() - this.bonusFood.spawn > this.bonusFood.life + 2500) this.bonusFood = null;
+    this.powerups = this.powerups.filter(p => performance.now() - p.spawn < 9000);
 
     if (this.checkDeath()) {
       if (this.hasShield()) {

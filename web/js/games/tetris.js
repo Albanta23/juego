@@ -12,8 +12,8 @@ class TetrisGame {
     this.piece = null; this.nextPiece = null; this.holdPiece = null;
     this.bag = []; this.queue = []; this.combo = -1; this.backToBack = false;
     this.canHold = true; this.gameOver = false; this.paused = false;
-    this.dropTimer = 0; this.dropInterval = 500; this.lastTime = 0;
-    this.lockDelay = 500; this.lockTimer = 0;
+    this.dropTimer = 0; this.dropInterval = 760; this.lastTime = 0;
+    this.lockDelay = 750; this.lockTimer = 0;
     this.clearingRows = []; this.clearAnim = 0;
     this.glitchTimer = 0;
     this.particles = new VFX.particles();
@@ -41,7 +41,7 @@ class TetrisGame {
     this.piece = null; this.nextPiece = null; this.holdPiece = null;
     this.bag = []; this.queue = []; this.combo = -1; this.backToBack = false;
     this.canHold = true; this.gameOver = false; this.paused = false;
-    this.dropInterval = 500; this.clearingRows = []; this.clearAnim = 0;
+    this.dropInterval = 760; this.lockDelay = 750; this.clearingRows = []; this.clearAnim = 0;
     this.particles = new VFX.particles();
     while (this.queue.length < 5) this.queue.push(this.randomPiece());
     this.spawnPiece();
@@ -106,8 +106,9 @@ class TetrisGame {
     if (isTetris && this.backToBack) lineScore = Math.floor(lineScore * 1.5);
     this.score += lineScore;
     if (full.length > 0) this.backToBack = isTetris;
-    this.lines += full.length; this.level = Math.min(1 + Math.floor(this.lines / 10), 15);
-    this.dropInterval = Math.max(50, 500 - (this.level - 1) * 30);
+    this.lines += full.length; this.level = Math.min(1 + Math.floor(this.lines / 12), 15);
+    this.dropInterval = Math.max(95, 760 - (this.level - 1) * 45);
+    this.lockDelay = Math.max(430, 750 - (this.level - 1) * 20);
     window.updateScore(this.score); window.audioManager.playLineClear();
     if (full.length >= 4) { this.shake.trigger(10, 300); this.glitchTimer = 15; }
     full.forEach(r => { for (let col = 0; col < this.cols; col++) this.particles.emit(this.offsetX + col * this.cell + this.cell / 2, this.offsetY + r * this.cell + this.cell / 2, 5, ['#00ffff','#ff00ff','#ffff00','#fff']); });

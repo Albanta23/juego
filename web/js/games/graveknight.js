@@ -16,10 +16,10 @@ class GraveKnightGame {
   reset() {
     this.groundY = Math.max(245, this.H - 86);
     this.camera = 0; this.score = 0; this.distance = 0; this.wave = 1;
-    this.spawnTimer = 0; this.bossSpawned = false; this.boss = null;
+    this.spawnTimer = 120; this.bossSpawned = false; this.boss = null;
     this.player = {
       x: 95, y: this.groundY - 54, vx: 0, vy: 0, w: 28, h: 52,
-      dir: 1, lives: 3, armor: 2, onGround: false, inv: 0, attackCd: 0
+      dir: 1, lives: 4, armor: 3, onGround: false, inv: 0, attackCd: 0
     };
     this.projectiles = []; this.enemies = []; this.pickups = [];
     this.platforms = this.makePlatforms();
@@ -89,17 +89,17 @@ class GraveKnightGame {
   spawnEnemy() {
     const ahead = this.camera + this.W + 40 + Math.random() * 260;
     const typeRoll = Math.random();
-    if (this.distance > 820 && !this.bossSpawned) {
+    if (this.distance > 1250 && !this.bossSpawned) {
       this.bossSpawned = true;
-      this.boss = { x: ahead + 220, y: this.groundY - 92, w: 76, h: 92, hp: 18, vx: -1.2, phase: 0, hurt: 0 };
+      this.boss = { x: ahead + 260, y: this.groundY - 92, w: 76, h: 92, hp: 14 + this.wave * 2, vx: -0.8, phase: 0, hurt: 0 };
       return;
     }
-    if (typeRoll < 0.56) {
-      this.enemies.push({ type: 'zombie', x: ahead, y: this.groundY - 42, w: 28, h: 42, vx: -1.1 - Math.random() * 0.7, hp: 2, rise: 22, hurt: 0 });
-    } else if (typeRoll < 0.82) {
-      this.enemies.push({ type: 'bat', x: ahead, y: this.groundY - 130 - Math.random() * 80, w: 30, h: 20, vx: -2.1 - Math.random() * 0.9, hp: 1, phase: Math.random() * 9, hurt: 0 });
+    if (typeRoll < 0.66 || this.wave < 2) {
+      this.enemies.push({ type: 'zombie', x: ahead, y: this.groundY - 42, w: 28, h: 42, vx: -0.75 - Math.random() * 0.45 - this.wave * 0.04, hp: 1 + Math.floor(this.wave / 4), rise: 22, hurt: 0 });
+    } else if (typeRoll < 0.88 || this.wave < 4) {
+      this.enemies.push({ type: 'bat', x: ahead, y: this.groundY - 130 - Math.random() * 80, w: 30, h: 20, vx: -1.55 - Math.random() * 0.55 - this.wave * 0.05, hp: 1, phase: Math.random() * 9, hurt: 0 });
     } else {
-      this.enemies.push({ type: 'hound', x: ahead, y: this.groundY - 28, w: 38, h: 28, vx: -3.1, hp: 1, hurt: 0 });
+      this.enemies.push({ type: 'hound', x: ahead, y: this.groundY - 28, w: 38, h: 28, vx: -2.25 - this.wave * 0.08, hp: 1, hurt: 0 });
     }
   }
 
@@ -129,9 +129,13 @@ class GraveKnightGame {
 
     this.camera = Math.max(0, p.x - this.W * 0.34);
     this.distance = Math.floor(this.camera / 10);
-    this.wave = 1 + Math.floor(this.distance / 260);
+    this.wave = 1 + Math.floor(this.distance / 380);
     this.spawnTimer--;
-    if (this.spawnTimer <= 0) { this.spawnEnemy(); this.spawnTimer = Math.max(24, 92 - this.wave * 6); }
+    if (this.spawnTimer <= 0) {
+      const maxEnemies = Math.min(8, 2 + this.wave);
+      if (this.enemies.length < maxEnemies) this.spawnEnemy();
+      this.spawnTimer = Math.max(42, 132 - this.wave * 8);
+    }
 
     this.projectiles.forEach(pr => { pr.x += pr.vx; pr.life--; });
     this.projectiles = this.projectiles.filter(pr => pr.life > 0 && pr.x > this.camera - 80 && pr.x < this.camera + this.W + 120);
@@ -141,7 +145,7 @@ class GraveKnightGame {
       if (e.type === 'zombie' && e.rise > 0) { e.rise--; e.y += Math.sin(e.rise * 0.4) * 0.5; }
       e.x += e.vx;
       if (e.type === 'bat') { e.phase += 0.12; e.y += Math.sin(e.phase) * 2.0; }
-      if (e.type === 'hound') e.vx = -3.0 - this.wave * 0.12;
+      if (e.type === 'hound') e.vx = -2.2 - this.wave * 0.09;
     });
 
     if (this.boss) {
@@ -161,7 +165,7 @@ class GraveKnightGame {
       it.y += Math.sin((this.frame + it.x) * 0.08) * 0.12;
       if (this.rectHit(p, { x: it.x, y: it.y, w: 18, h: 18 })) {
         it.dead = true; this.score += it.type === 'armor' ? 150 : 50;
-        if (it.type === 'armor') p.armor = Math.min(2, p.armor + 1);
+        if (it.type === 'armor') p.armor = Math.min(3, p.armor + 1);
         window.audioManager.playBonus();
       }
     });
@@ -207,7 +211,7 @@ class GraveKnightGame {
     p.inv = 90; this.shake.trigger(10, 260);
     p.armor -= amount;
     if (p.armor <= 0) {
-      p.lives--; p.armor = 1;
+      p.lives--; p.armor = 2;
       if (p.lives <= 0) {
         this.state = 'gameover'; window.audioManager.playGameOver(); window.gameStorage.setHighScore('graveknight', this.score); return;
       }
