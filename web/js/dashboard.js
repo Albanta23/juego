@@ -41,7 +41,7 @@ const TOUCH_LAYOUTS = {
   },
   starfighter: {
     pad: [['↑', 'ArrowUp', 'up'], ['←', 'ArrowLeft', 'left'], ['↓', 'ArrowDown', 'down'], ['→', 'ArrowRight', 'right']],
-    actions: [['START', 'Enter'], ['FIRE', 'x'], ['RETRY', 'r']]
+    actions: [['START', 'Enter'], ['FIRE', 'x'], ['BOMB', 'b'], ['RETRY', 'r']]
   }
 };
 
@@ -73,8 +73,20 @@ function launchGame(id) {
   screen.classList.add('active');
   screen.querySelector('.game-title').textContent = game.name;
   document.getElementById('toolbar-back').onclick = exitGame;
-
   const canvas = document.getElementById('game-canvas');
+  document.getElementById('toolbar-pause').onclick = () => {
+    dispatchGameKey('keydown', 'p');
+    dispatchGameKey('keyup', 'p');
+    canvas.focus();
+  };
+  const soundButton = document.getElementById('toolbar-sound');
+  soundButton.textContent = window.audioManager.enabled ? 'SND' : 'MUTE';
+  soundButton.onclick = () => {
+    const enabled = window.audioManager.toggle();
+    soundButton.textContent = enabled ? 'SND' : 'MUTE';
+    canvas.focus();
+  };
+
   const touchControls = document.getElementById('touch-controls');
   const isTouchViewport = window.matchMedia('(hover: none), (pointer: coarse), (max-width: 600px)').matches;
   const controlsReserve = isTouchViewport ? Math.min(150, Math.max(112, window.innerHeight * 0.2)) : 0;
