@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UI;
-using UnityEngine.EventSystems;
 
 public class NeonMazeGame : MonoBehaviour
 {
@@ -35,8 +33,8 @@ public class NeonMazeGame : MonoBehaviour
     private Transform player;
     private readonly List<Ghost> ghosts = new List<Ghost>();
     private readonly Dictionary<Vector2Int, GameObject> dots = new Dictionary<Vector2Int, GameObject>();
-    private Text hud;
-    private Text message;
+    private string hudText;
+    private string messageText;
     private Vector2Int playerCell;
     private Vector2Int desiredDirection = Vector2Int.left;
     private Vector2Int moveDirection = Vector2Int.left;
@@ -143,8 +141,7 @@ public class NeonMazeGame : MonoBehaviour
         BuildDots();
         SpawnGhosts();
         startTimer = 1.5f;
-        message.text = "READY!";
-        message.gameObject.SetActive(true);
+        messageText = "READY!";
     }
 
     private void RestartGame() => StartLevel(true);
@@ -258,13 +255,12 @@ public class NeonMazeGame : MonoBehaviour
             return;
         }
         lives--;
-        if (lives <= 0) { gameOver = true; message.text = "GAME OVER\nPULSA R O ENTER"; message.gameObject.SetActive(true); return; }
+        if (lives <= 0) { gameOver = true; messageText = "GAME OVER\nPULSA R O ENTER"; return; }
         playerCell = new Vector2Int(9, 11);
         player.position = World(playerCell) + Vector3.up * 0.48f;
         moveProgress = 0f;
         startTimer = 1.2f;
-        message.text = "PREPARATE";
-        message.gameObject.SetActive(true);
+        messageText = "PREPARATE";
     }
 
     private void ReadInput()
@@ -273,7 +269,7 @@ public class NeonMazeGame : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) desiredDirection = Vector2Int.down;
         if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) desiredDirection = Vector2Int.left;
         if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) desiredDirection = Vector2Int.right;
-        if (Input.touchCount == 0 || EventSystem.current != null && EventSystem.current.IsPointerOverGameObject(Input.GetTouch(0).fingerId)) return;
+        if (Input.touchCount == 0) return;
         Touch touch = Input.GetTouch(0);
         if (touch.phase != TouchPhase.Ended) return;
         Vector2 delta = touch.position - touch.rawPosition + touch.deltaPosition;
@@ -324,49 +320,30 @@ public class NeonMazeGame : MonoBehaviour
 
     private void CreateHud()
     {
-        var canvas = new GameObject("HUD").AddComponent<Canvas>();
-        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.gameObject.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-        canvas.GetComponent<CanvasScaler>().referenceResolution = new Vector2(1080, 720);
-        var eventSystem = new GameObject("EventSystem");
-        eventSystem.AddComponent<EventSystem>();
-        eventSystem.AddComponent<StandaloneInputModule>();
-        hud = CreateText(canvas.transform, "HUD", TextAnchor.UpperLeft, new Vector2(26, -22), new Vector2(680, 100), 26, new Color(0.8f, 0.95f, 1f));
-        message = CreateText(canvas.transform, "Message", TextAnchor.MiddleCenter, Vector2.zero, new Vector2(700, 210), 48, new Color(1f, 0.82f, 0.16f));
-        message.GetComponent<RectTransform>().anchorMin = message.GetComponent<RectTransform>().anchorMax = new Vector2(0.5f, 0.5f);
-        CreateButton(canvas.transform, "LEFT", new Vector2(80, 75), new Vector2(125, 90), "left");
-        CreateButton(canvas.transform, "RIGHT", new Vector2(230, 75), new Vector2(125, 90), "right");
-        CreateButton(canvas.transform, "UP", new Vector2(-155, 75), new Vector2(125, 90), "up");
-        CreateButton(canvas.transform, "DOWN", new Vector2(-5, 75), new Vector2(125, 90), "down");
+        hudText = "UNITY NEON MAZE";
     }
 
-    private Text CreateText(Transform parent, string name, TextAnchor anchor, Vector2 position, Vector2 size, int fontSize, Color color)
+    private void OnGUI()
     {
-        var text = new GameObject(name).AddComponent<Text>();
-        text.transform.SetParent(parent);
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = fontSize;
-        text.color = color;
-        text.alignment = anchor;
-        var rect = text.rectTransform;
-        rect.anchorMin = new Vector2(0f, 1f); rect.anchorMax = new Vector2(0f, 1f); rect.pivot = new Vector2(0f, 1f);
-        rect.anchoredPosition = position; rect.sizeDelta = size;
-        return text;
-    }
+        var hudStyle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.Clamp(Screen.width / 34, 18, 30), normal = { textColor = new Color(0.8f, 0.95f, 1f) } };
+        GUI.Label(new Rect(22f, 18f, Screen.width - 44f, 96f), hudText, hudStyle);
 
-    private void CreateButton(Transform parent, string label, Vector2 position, Vector2 size, string direction)
-    {
-        var button = new GameObject(label).AddComponent<Button>();
-        button.transform.SetParent(parent);
-        var image = button.gameObject.AddComponent<Image>();
-        image.color = new Color(0.05f, 0.22f, 0.55f, 0.86f);
-        var rect = button.GetComponent<RectTransform>();
-        rect.anchorMin = rect.anchorMax = new Vector2(1f, 0f); rect.pivot = new Vector2(1f, 0f);
-        rect.anchoredPosition = position; rect.sizeDelta = size;
-        var text = CreateText(button.transform, "Label", TextAnchor.MiddleCenter, Vector2.zero, size, 25, Color.white);
-        text.rectTransform.anchorMin = Vector2.zero; text.rectTransform.anchorMax = Vector2.one; text.rectTransform.pivot = new Vector2(0.5f, 0.5f); text.rectTransform.anchoredPosition = Vector2.zero;
-        text.text = label;
-        button.onClick.AddListener(() => SetDirection(direction));
+        if (startTimer > 0f || gameOver)
+        {
+            var messageStyle = new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.Clamp(Screen.width / 20, 30, 52), normal = { textColor = new Color(1f, 0.82f, 0.16f) } };
+            GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, 150f), messageText, messageStyle);
+        }
+
+        if (Screen.width < 900)
+        {
+            float size = Mathf.Clamp(Screen.width * 0.16f, 62f, 104f);
+            float x = Screen.width - size * 2.25f;
+            float y = Screen.height - size * 1.25f;
+            if (GUI.Button(new Rect(x, y, size, size), "LEFT")) SetDirection("left");
+            if (GUI.Button(new Rect(x + size * 1.12f, y, size, size), "RIGHT")) SetDirection("right");
+            if (GUI.Button(new Rect(x - size * 0.56f, y - size * 0.98f, size, size), "UP")) SetDirection("up");
+            if (GUI.Button(new Rect(x + size * 0.56f, y - size * 0.98f, size, size), "DOWN")) SetDirection("down");
+        }
     }
 
     private void ClearDots()
@@ -377,7 +354,6 @@ public class NeonMazeGame : MonoBehaviour
 
     private void UpdateHud()
     {
-        message.gameObject.SetActive(startTimer > 0f || gameOver);
-        hud.text = "UNITY NEON MAZE\nSCORE " + score + "    LIVES " + lives + "    LEVEL " + level + (frightenedTimer > 0f ? "    POWER " + Mathf.CeilToInt(frightenedTimer) : "");
+        hudText = "UNITY NEON MAZE\nSCORE " + score + "    LIVES " + lives + "    LEVEL " + level + (frightenedTimer > 0f ? "    POWER " + Mathf.CeilToInt(frightenedTimer) : "");
     }
 }
