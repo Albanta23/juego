@@ -49,11 +49,26 @@ public class NeonMazeGame : MonoBehaviour
     private float frightenedTimer;
     private float startTimer;
     private bool gameOver;
+    private bool paused;
     private AudioSource audioSource;
     private AudioClip dotSound;
     private AudioClip powerSound;
     private AudioClip hitSound;
     private AudioClip levelSound;
+
+    private GUIStyle hudStyle;
+    private int hudStyleFontSize = -1;
+    private GUIStyle messageStyle;
+    private int messageStyleFontSize = -1;
+
+    private Material wallMaterial;
+    private Material playerMaterial;
+    private Material dotMaterial;
+    private Material powerMaterial;
+    private Material floorMaterial;
+    private Material[] ghostMaterials;
+
+    private readonly Queue<GameObject> dotPool = new Queue<GameObject>();
 
     private class Ghost
     {
@@ -75,12 +90,25 @@ public class NeonMazeGame : MonoBehaviour
 
     private void Update()
     {
-        ReadInput();
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            paused = !paused;
+        }
+
         if (gameOver)
         {
+            ReadInput();
             if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.R)) RestartGame();
             return;
         }
+
+        if (paused)
+        {
+            UpdateHud();
+            return;
+        }
+
+        ReadInput();
 
         if (startTimer > 0f)
         {
@@ -101,6 +129,7 @@ public class NeonMazeGame : MonoBehaviour
         if (camera == null)
         {
             camera = new GameObject("Main Camera").AddComponent<Camera>();
+            camera.gameObject.AddComponent<AudioListener>();
             camera.tag = "MainCamera";
         }
         camera.transform.position = new Vector3(0f, 17.5f, -13.5f);
@@ -116,11 +145,21 @@ public class NeonMazeGame : MonoBehaviour
         light.intensity = 1.15f;
         lightObject.transform.rotation = Quaternion.Euler(55f, -25f, 0f);
 
+        wallMaterial = MaterialFor(new Color(0.07f, 0.18f, 0.54f), 0.5f);
+        playerMaterial = MaterialFor(new Color(1f, 0.76f, 0.04f), 1.1f);
+        dotMaterial = MaterialFor(new Color(0.75f, 0.96f, 1f), 0.4f);
+        powerMaterial = MaterialFor(new Color(1f, 0.3f, 0.83f), 1.3f);
+        floorMaterial = MaterialFor(new Color(0.015f, 0.025f, 0.09f), 0.06f);
+
+        ghostMaterials = new Material[4];
+        Color[] ghostColors = { new Color(1f, 0.18f, 0.36f), new Color(0.05f, 0.9f, 1f), new Color(1f, 0.34f, 0.78f), new Color(1f, 0.58f, 0.12f) };
+        for (int i = 0; i < 4; i++) ghostMaterials[i] = MaterialFor(ghostColors[i], 0.9f);
+
         var floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = "Reflective Floor";
         floor.transform.position = new Vector3(0f, -0.22f, 0f);
         floor.transform.localScale = new Vector3(Columns * Tile + 2f, 0.25f, Rows * Tile + 2f);
-        floor.GetComponent<Renderer>().material = MaterialFor(new Color(0.015f, 0.025f, 0.09f), 0.06f);
+        floor.GetComponent<Renderer>().material = floorMaterial;
 
         for (int row = 0; row < Rows; row++)
         for (int col = 0; col < Columns; col++)
@@ -132,8 +171,42 @@ public class NeonMazeGame : MonoBehaviour
         player = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
         player.name = "Neon Pac";
         player.localScale = Vector3.one * 0.82f;
-        player.GetComponent<Renderer>().material = MaterialFor(new Color(1f, 0.76f, 0.04f), 1.1f);
+        player.GetComponent<Renderer>().material = playerMaterial;
+
+        PrewarmDotPool();
         CreateHud();
+    }
+
+    private void PrewarmDotPool()
+    {
+        int totalDots = 0;
+        for (int row = 0; row < Rows; row++)
+        for (int col = 0; col < Columns; col++)
+            if (maze[row][col] == '.' || maze[row][col] == 'o') totalDots++;
+
+        for (int i = 0; i < totalDots; i++)
+        {
+            var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            dot.SetActive(false);
+            dotPool.Enqueue(dot);
+        }
+    }
+
+    private GameObject GetDot()
+    {
+        if (dotPool.Count > 0)
+        {
+            var dot = dotPool.Dequeue();
+            dot.SetActive(true);
+            return dot;
+        }
+        return GameObject.CreatePrimitive(PrimitiveType.Sphere);
+    }
+
+    private void ReturnDot(GameObject dot)
+    {
+        dot.SetActive(false);
+        dotPool.Enqueue(dot);
     }
 
     private void StartLevel(bool resetScore)
@@ -163,11 +236,12 @@ public class NeonMazeGame : MonoBehaviour
         {
             char type = maze[row][col];
             if (type != '.' && type != 'o') continue;
-            var dot = GameObject.CreatePrimitive(PrimitiveType.Sphere);
-            dot.name = type == 'o' ? "Power Orb" : "Energy Dot";
+            bool isPower = type == 'o';
+            var dot = GetDot();
+            dot.name = isPower ? "Power Orb" : "Energy Dot";
             dot.transform.position = World(new Vector2Int(col, row)) + Vector3.up * 0.32f;
-            dot.transform.localScale = Vector3.one * (type == 'o' ? 0.3f : 0.13f);
-            dot.GetComponent<Renderer>().material = MaterialFor(type == 'o' ? new Color(1f, 0.3f, 0.83f) : new Color(0.75f, 0.96f, 1f), type == 'o' ? 1.3f : 0.4f);
+            dot.transform.localScale = Vector3.one * (isPower ? 0.3f : 0.13f);
+            dot.GetComponent<Renderer>().material = isPower ? powerMaterial : dotMaterial;
             dots[new Vector2Int(col, row)] = dot;
             dotsLeft++;
         }
@@ -178,15 +252,14 @@ public class NeonMazeGame : MonoBehaviour
         foreach (Ghost ghost in ghosts) if (ghost.body != null) Destroy(ghost.body.gameObject);
         ghosts.Clear();
         Vector2Int[] spawns = { new Vector2Int(8, 7), new Vector2Int(9, 7), new Vector2Int(10, 7), new Vector2Int(9, 9) };
-        Color[] colors = { new Color(1f, 0.18f, 0.36f), new Color(0.05f, 0.9f, 1f), new Color(1f, 0.34f, 0.78f), new Color(1f, 0.58f, 0.12f) };
         for (int i = 0; i < spawns.Length; i++)
         {
             var body = GameObject.CreatePrimitive(PrimitiveType.Capsule).transform;
             body.name = "Neon Ghost";
             body.localScale = new Vector3(0.66f, 0.72f, 0.66f);
             body.position = World(spawns[i]) + Vector3.up * 0.48f;
-            body.GetComponent<Renderer>().material = MaterialFor(colors[i], 0.9f);
-            ghosts.Add(new Ghost { body = body, cell = spawns[i], spawn = spawns[i], direction = directions[i], color = colors[i] });
+            body.GetComponent<Renderer>().material = ghostMaterials[i];
+            ghosts.Add(new Ghost { body = body, cell = spawns[i], spawn = spawns[i], direction = directions[i], color = ghostMaterials[i].color });
         }
     }
 
@@ -206,13 +279,14 @@ public class NeonMazeGame : MonoBehaviour
     private void MoveGhosts()
     {
         float speed = 3.0f + level * 0.22f + (frightenedTimer > 0f ? -0.65f : 0f);
+        Color frightenedColor = new Color(0.18f, 0.35f, 1f);
         foreach (Ghost ghost in ghosts)
         {
             if (ghost.respawnTimer > 0f) { ghost.respawnTimer -= Time.deltaTime; continue; }
             if (ghost.progress <= 0.01f) ChooseGhostDirection(ghost);
             ghost.progress += Time.deltaTime * speed;
             ghost.body.position = Vector3.Lerp(World(ghost.cell), World(ghost.cell + ghost.direction), ghost.progress) + Vector3.up * 0.48f;
-            ghost.body.GetComponent<Renderer>().material.color = frightenedTimer > 0f ? new Color(0.18f, 0.35f, 1f) : ghost.color;
+            ghost.body.GetComponent<Renderer>().material.color = frightenedTimer > 0f ? frightenedColor : ghost.color;
             if (ghost.progress >= 1f) { ghost.cell = Wrap(ghost.cell + ghost.direction); ghost.progress = 0f; }
             if (Vector3.Distance(ghost.body.position, player.position) < 0.7f) ResolveGhostHit(ghost);
         }
@@ -220,20 +294,21 @@ public class NeonMazeGame : MonoBehaviour
 
     private void ChooseGhostDirection(Ghost ghost)
     {
-        var choices = new List<Vector2Int>();
-        foreach (Vector2Int direction in directions)
+        var choices = new List<Vector2Int>(4);
+        foreach (Vector2Int dir in directions)
         {
-            if (direction == -ghost.direction && choices.Count > 0) continue;
-            if (CanMove(ghost.cell, direction)) choices.Add(direction);
+            if (dir == -ghost.direction) continue;
+            if (CanMove(ghost.cell, dir)) choices.Add(dir);
         }
         if (choices.Count == 0) { ghost.direction = -ghost.direction; return; }
-        Vector2Int best = choices[Random.Range(0, choices.Count)];
+        Vector2Int best = choices[0];
         float bestDistance = frightenedTimer > 0f ? -1f : float.MaxValue;
+        bool alwaysBest = level > 3;
         foreach (Vector2Int choice in choices)
         {
             float distance = (Wrap(ghost.cell + choice) - playerCell).sqrMagnitude;
             bool better = frightenedTimer > 0f ? distance > bestDistance : distance < bestDistance;
-            if (better && (Random.value > 0.22f || level > 2)) { best = choice; bestDistance = distance; }
+            if (better && (alwaysBest || Random.value > 0.22f)) { best = choice; bestDistance = distance; }
         }
         ghost.direction = best;
     }
@@ -242,7 +317,7 @@ public class NeonMazeGame : MonoBehaviour
     {
         if (!dots.TryGetValue(playerCell, out GameObject dot)) return;
         bool power = dot.name == "Power Orb";
-        Destroy(dot);
+        ReturnDot(dot);
         dots.Remove(playerCell);
         dotsLeft--;
         score += power ? 50 : 10;
@@ -286,10 +361,12 @@ public class NeonMazeGame : MonoBehaviour
         if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) desiredDirection = Vector2Int.down;
         if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) desiredDirection = Vector2Int.left;
         if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) desiredDirection = Vector2Int.right;
+
         if (Input.touchCount == 0) return;
         Touch touch = Input.GetTouch(0);
         if (touch.phase != TouchPhase.Ended) return;
         Vector2 delta = touch.position - touch.rawPosition + touch.deltaPosition;
+        if (delta.sqrMagnitude < 100f) return;
         if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y)) desiredDirection = delta.x > 0f ? Vector2Int.right : Vector2Int.left;
         else desiredDirection = delta.y > 0f ? Vector2Int.up : Vector2Int.down;
     }
@@ -323,7 +400,7 @@ public class NeonMazeGame : MonoBehaviour
         wall.name = "Neon Maze Wall";
         wall.transform.position = World(cell) + Vector3.up * 0.45f;
         wall.transform.localScale = new Vector3(Tile, 0.9f, Tile);
-        wall.GetComponent<Renderer>().material = MaterialFor(new Color(0.07f, 0.18f, 0.54f), 0.5f);
+        wall.GetComponent<Renderer>().material = wallMaterial;
     }
 
     private Material MaterialFor(Color color, float emission)
@@ -359,7 +436,8 @@ public class NeonMazeGame : MonoBehaviour
         var samples = new float[sampleCount];
         for (int i = 0; i < sampleCount; i++)
         {
-            float wave = Mathf.Sin(2f * Mathf.PI * frequency * i / sampleRate);
+            float t = (float)i / sampleRate;
+            float wave = Mathf.Sin(2f * Mathf.PI * frequency * t);
             if (square) wave = wave >= 0f ? 0.75f : -0.75f;
             float envelope = 1f - (float)i / sampleCount;
             samples[i] = wave * envelope * 0.35f;
@@ -376,13 +454,24 @@ public class NeonMazeGame : MonoBehaviour
 
     private void OnGUI()
     {
-        var hudStyle = new GUIStyle(GUI.skin.label) { fontSize = Mathf.Clamp(Screen.width / 34, 18, 30), normal = { textColor = new Color(0.8f, 0.95f, 1f) } };
+        int hudSize = Mathf.Clamp(Screen.width / 34, 18, 30);
+        if (hudStyle == null || hudStyleFontSize != hudSize)
+        {
+            hudStyle = new GUIStyle(GUI.skin.label) { fontSize = hudSize, normal = { textColor = new Color(0.8f, 0.95f, 1f) } };
+            hudStyleFontSize = hudSize;
+        }
         GUI.Label(new Rect(22f, 18f, Screen.width - 44f, 96f), hudText, hudStyle);
 
-        if (startTimer > 0f || gameOver)
+        if (startTimer > 0f || gameOver || paused)
         {
-            var messageStyle = new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.Clamp(Screen.width / 20, 30, 52), normal = { textColor = new Color(1f, 0.82f, 0.16f) } };
-            GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, 150f), messageText, messageStyle);
+            int msgSize = Mathf.Clamp(Screen.width / 20, 30, 52);
+            if (messageStyle == null || messageStyleFontSize != msgSize)
+            {
+                messageStyle = new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = msgSize, normal = { textColor = new Color(1f, 0.82f, 0.16f) } };
+                messageStyleFontSize = msgSize;
+            }
+            string msg = paused ? "PAUSA\nPULSA ESC PARA CONTINUAR" : messageText;
+            GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, 150f), msg, messageStyle);
         }
 
         if (Screen.width < 900)
@@ -399,7 +488,7 @@ public class NeonMazeGame : MonoBehaviour
 
     private void ClearDots()
     {
-        foreach (GameObject dot in dots.Values) if (dot != null) Destroy(dot);
+        foreach (GameObject dot in dots.Values) if (dot != null) ReturnDot(dot);
         dots.Clear();
     }
 

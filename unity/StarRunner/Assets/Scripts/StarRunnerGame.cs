@@ -25,6 +25,17 @@ public class StarRunnerGame : MonoBehaviour
     private int level = 1;
     private int targetLane;
     private bool gameOver;
+    private float screenShake;
+
+    private GUIStyle hudStyle;
+    private int hudStyleFontSize = -1;
+
+    private Material hazardMaterial;
+    private Material pickupMaterial;
+    private Material starMaterial;
+
+    private readonly Queue<GameObject> spherePool = new Queue<GameObject>();
+    private readonly Queue<GameObject> cubePool = new Queue<GameObject>();
 
     private void Start()
     {
@@ -45,6 +56,17 @@ public class StarRunnerGame : MonoBehaviour
         AdvanceWorld();
         SpawnObjects();
         UpdateHud();
+
+        if (screenShake > 0f)
+        {
+            screenShake -= Time.deltaTime;
+            float intensity = screenShake * 0.06f;
+            mainCamera.transform.localPosition = new Vector3(
+                Random.Range(-intensity, intensity),
+                Random.Range(-intensity, intensity),
+                mainCamera.transform.localPosition.z
+            );
+        }
     }
 
     private void BuildScene()
@@ -67,10 +89,16 @@ public class StarRunnerGame : MonoBehaviour
         if (FindObjectOfType<Light>() == null)
         {
             var lightObject = new GameObject("Key Light");
-            var light = lightObject.AddComponent<DirectionalLightFallback>();
+            var light = lightObject.AddComponent<Light>();
+            light.type = LightType.Directional;
+            light.intensity = 1.25f;
+            light.color = new Color(0.75f, 0.92f, 1f);
             lightObject.transform.rotation = Quaternion.Euler(48f, -32f, 0f);
-            light.Apply();
         }
+
+        hazardMaterial = MakeMat(new Color(1f, 0.18f, 0.34f));
+        pickupMaterial = MakeMat(new Color(0f, 1f, 0.9f));
+        starMaterial = MakeMat(Color.white);
 
         BuildTrack();
         BuildShip();
@@ -81,9 +109,46 @@ public class StarRunnerGame : MonoBehaviour
             star.name = "Parallax Star";
             star.localScale = Vector3.one * Random.Range(0.05f, 0.16f);
             star.position = new Vector3(Random.Range(-16f, 16f), Random.Range(1.5f, 11f), Random.Range(3f, 90f));
-            star.GetComponent<Renderer>().material = MakeMat(Color.white);
+            star.GetComponent<Renderer>().material = starMaterial;
             stars.Add(star);
         }
+
+        for (int i = 0; i < 8; i++)
+        {
+            var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            cube.SetActive(false);
+            cubePool.Enqueue(cube);
+        }
+        for (int i = 0; i < 6; i++)
+        {
+            var sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            sphere.SetActive(false);
+            spherePool.Enqueue(sphere);
+        }
+    }
+
+    private Transform GetFromPool(Queue<GameObject> pool, PrimitiveType type, string name, Material mat, Vector3 position, Vector3 scale)
+    {
+        GameObject obj = null;
+        while (pool.Count > 0 && obj == null)
+        {
+            obj = pool.Dequeue();
+            if (obj == null) obj = null;
+        }
+        if (obj == null) obj = GameObject.CreatePrimitive(type);
+        else obj.transform.rotation = Quaternion.identity;
+        obj.name = name;
+        obj.transform.position = position;
+        obj.transform.localScale = scale;
+        obj.GetComponent<Renderer>().material = mat;
+        obj.SetActive(true);
+        return obj.transform;
+    }
+
+    private void ReturnToPool(Queue<GameObject> pool, GameObject obj)
+    {
+        obj.SetActive(false);
+        pool.Enqueue(obj);
     }
 
     private void BuildShip()
@@ -94,6 +159,10 @@ public class StarRunnerGame : MonoBehaviour
         CreatePart(PrimitiveType.Cube, player, new Vector3(-0.78f, 0.3f, -0.05f), new Vector3(1.25f, 0.12f, 0.65f), new Color(0.12f, 0.35f, 1f));
         CreatePart(PrimitiveType.Cube, player, new Vector3(0.78f, 0.3f, -0.05f), new Vector3(1.25f, 0.12f, 0.65f), new Color(0.12f, 0.35f, 1f));
         CreatePart(PrimitiveType.Sphere, player, new Vector3(0f, 0.58f, -0.18f), new Vector3(0.34f, 0.22f, 0.42f), new Color(1f, 0.28f, 0.8f));
+
+        var collider = player.gameObject.AddComponent<SphereCollider>();
+        collider.isTrigger = true;
+        collider.radius = 1.2f;
     }
 
     private Transform CreatePart(PrimitiveType type, Transform parent, Vector3 position, Vector3 scale, Color color)
@@ -123,8 +192,8 @@ public class StarRunnerGame : MonoBehaviour
 
     private void ResetGame()
     {
-        foreach (var h in hazards) if (h != null) Destroy(h.gameObject);
-        foreach (var p in pickups) if (p != null) Destroy(p.gameObject);
+        foreach (var h in hazards) if (h != null) ReturnToPool(GetPoolForObject(h.gameObject), h.gameObject);
+        foreach (var p in pickups) if (p != null) ReturnToPool(spherePool, p.gameObject);
         hazards.Clear();
         pickups.Clear();
         player.position = new Vector3(0f, 0.4f, 0f);
@@ -136,12 +205,34 @@ public class StarRunnerGame : MonoBehaviour
         spawnTimer = 1.2f;
         forwardSpeed = 16f;
         gameOver = false;
+        screenShake = 0f;
+    }
+
+    private Queue<GameObject> GetPoolForObject(GameObject obj)
+    {
+        var filter = obj.GetComponent<MeshFilter>();
+        if (filter != null && filter.sharedMesh != null)
+        {
+            if (filter.sharedMesh.vertexCount == 24) return cubePool;
+        }
+        return spherePool;
     }
 
     private void ReadInput()
     {
         if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)) targetLane = Mathf.Max(-1, targetLane - 1);
         if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) targetLane = Mathf.Min(1, targetLane + 1);
+
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+            if (touch.phase == TouchPhase.Began)
+            {
+                float halfScreen = Screen.width * 0.5f;
+                if (touch.position.x < halfScreen) targetLane = Mathf.Max(-1, targetLane - 1);
+                else targetLane = Mathf.Min(1, targetLane + 1);
+            }
+        }
     }
 
     private void MovePlayer()
@@ -206,16 +297,17 @@ public class StarRunnerGame : MonoBehaviour
                 else
                 {
                     shield--;
+                    screenShake = 0.3f;
                     if (shield <= 0) gameOver = true;
                 }
-                Destroy(t.gameObject);
+                ReturnToPool(isPickup ? spherePool : GetPoolForObject(t.gameObject), t.gameObject);
                 list.RemoveAt(i);
                 continue;
             }
 
             if (t.position.z < -8f)
             {
-                Destroy(t.gameObject);
+                ReturnToPool(isPickup ? spherePool : GetPoolForObject(t.gameObject), t.gameObject);
                 list.RemoveAt(i);
             }
         }
@@ -239,21 +331,29 @@ public class StarRunnerGame : MonoBehaviour
 
     private void SpawnHazard()
     {
-        var hazard = GameObject.CreatePrimitive(Random.value > 0.6f ? PrimitiveType.Cube : PrimitiveType.Sphere).transform;
-        hazard.name = "Hazard";
-        hazard.position = new Vector3(Random.Range(-1, 2) * laneWidth, 0.55f, spawnDistance + Random.Range(0f, 18f));
-        hazard.localScale = Vector3.one * Random.Range(0.72f, 1.22f);
-        hazard.GetComponent<Renderer>().material = MakeMat(new Color(1f, 0.18f, 0.34f));
+        bool isCube = Random.value > 0.6f;
+        float scale = Random.Range(0.72f, 1.22f);
+        var hazard = GetFromPool(
+            isCube ? cubePool : spherePool,
+            isCube ? PrimitiveType.Cube : PrimitiveType.Sphere,
+            "Hazard",
+            hazardMaterial,
+            new Vector3(Random.Range(-1, 2) * laneWidth, 0.55f, spawnDistance + Random.Range(0f, 18f)),
+            Vector3.one * scale
+        );
         hazards.Add(hazard);
     }
 
     private void SpawnPickup()
     {
-        var pickup = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
-        pickup.name = "Shield Pickup";
-        pickup.position = new Vector3(Random.Range(-1, 2) * laneWidth, 0.58f, spawnDistance + Random.Range(6f, 24f));
-        pickup.localScale = Vector3.one * 0.55f;
-        pickup.GetComponent<Renderer>().material = MakeMat(new Color(0f, 1f, 0.9f));
+        var pickup = GetFromPool(
+            spherePool,
+            PrimitiveType.Sphere,
+            "Shield Pickup",
+            pickupMaterial,
+            new Vector3(Random.Range(-1, 2) * laneWidth, 0.58f, spawnDistance + Random.Range(6f, 24f)),
+            Vector3.one * 0.55f
+        );
         pickups.Add(pickup);
     }
 
@@ -277,22 +377,16 @@ public class StarRunnerGame : MonoBehaviour
 
     private void OnGUI()
     {
-        var style = new GUIStyle(GUI.skin.label)
+        int targetSize = Mathf.Clamp(Screen.width / 36, 18, 28);
+        if (hudStyle == null || hudStyleFontSize != targetSize)
         {
-            fontSize = Mathf.Clamp(Screen.width / 36, 18, 28),
-            normal = { textColor = new Color(0.55f, 0.95f, 1f) }
-        };
-        GUI.Label(new Rect(20f, 16f, Screen.width - 40f, 100f), hudText, style);
-    }
-}
-
-public class DirectionalLightFallback : MonoBehaviour
-{
-    public void Apply()
-    {
-        var light = gameObject.AddComponent<Light>();
-        light.type = LightType.Directional;
-        light.intensity = 1.25f;
-        light.color = new Color(0.75f, 0.92f, 1f);
+            hudStyle = new GUIStyle(GUI.skin.label)
+            {
+                fontSize = targetSize,
+                normal = { textColor = new Color(0.55f, 0.95f, 1f) }
+            };
+            hudStyleFontSize = targetSize;
+        }
+        GUI.Label(new Rect(20f, 16f, Screen.width - 40f, 100f), hudText, hudStyle);
     }
 }
