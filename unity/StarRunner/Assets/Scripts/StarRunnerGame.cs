@@ -85,7 +85,7 @@ public class StarRunnerGame : MonoBehaviour
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         hud = new GameObject("HUD Text").AddComponent<Text>();
         hud.transform.SetParent(canvas.transform);
-        hud.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        hud.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         hud.fontSize = 22;
         hud.color = Color.cyan;
         hud.alignment = TextAnchor.UpperLeft;

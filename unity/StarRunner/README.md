@@ -12,10 +12,10 @@ Juego Unity fuente para integrarlo en el panel web del arcade como build WebGL.
 
 ## Como exportarlo a la web
 
-1. File > Build Settings.
-2. Selecciona `WebGL`.
-3. Pulsa `Switch Platform`.
-4. Build en una carpeta temporal.
-5. Copia el contenido generado dentro de `web/unity/starrunner/`.
+El build WebGL ya esta generado en `web/unity/starrunner/`. Coolify lo publicara
+al desplegar los cambios del repositorio.
+
+Para regenerarlo tras un cambio, usa `Tools > Star Runner > Build WebGL`.
+El export se produce directamente en `web/unity/starrunner/`.
 
 El panel web ya tiene la tarjeta `UNITY STAR RUNNER` y carga `web/unity/starrunner/index.html`.

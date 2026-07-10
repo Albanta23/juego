@@ -344,7 +344,7 @@ public class NeonMazeGame : MonoBehaviour
     {
         var text = new GameObject(name).AddComponent<Text>();
         text.transform.SetParent(parent);
-        text.font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         text.fontSize = fontSize;
         text.color = color;
         text.alignment = anchor;
