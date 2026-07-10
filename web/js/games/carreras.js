@@ -17,7 +17,7 @@ class CarrerasGame {
     this.VISIBLE_SEGS = 100;
     this.ROAD_WIDTH = 0.7;
     this.LANE_COUNT = 5;
-    this.CURVE_SCALE = 1.6;
+    this.CURVE_SCALE = 1.0;
     this.TOTAL_SEGMENTS = 5000;
 
     // Road data
@@ -67,9 +67,10 @@ class CarrerasGame {
   reset() {
     this.generateRoad();
     this.roadIndex = 0;
-    this.speed = 0;
+    this.roadScrollAccum = 0;
+    this.speed = 4;
     this.maxSpeed = 14;
-    this.accel = 0.12;
+    this.accel = 0.15;
     this.brakeForce = 0.2;
     this.friction = 0.015;
     this.lane = 0;
@@ -107,7 +108,7 @@ class CarrerasGame {
     const count = Math.min(10, 4 + Math.floor(this.level / 2));
     const span = Math.max(180, 350 - this.level * 12);
     for (let i = 0; i < count; i++) {
-      this.enemies.push(this.createEnemy(120 + (span / count) * i + Math.random() * (span / count) * 0.3));
+      this.enemies.push(this.createEnemy(180 + (span / count) * i + Math.random() * (span / count) * 0.3));
     }
   }
 
@@ -121,8 +122,8 @@ class CarrerasGame {
       w: 32,
       h: 52,
       scoredNear: false,
+      hit: false,
       type: Math.random() > 0.8 ? 'truck' : 'car',
-      passed: false,
       active: true
     };
   }
@@ -198,7 +199,7 @@ class CarrerasGame {
     } else if (this.keys['ArrowDown'] || this.keys['s']) {
       this.speed = Math.max(0, this.speed - this.brakeForce);
     } else {
-      this.speed = Math.max(0, this.speed - this.friction);
+      this.speed = Math.max(3, this.speed - this.friction);
     }
 
     // Nitro
@@ -253,9 +254,13 @@ class CarrerasGame {
       }
     }
 
-    // Update road position
-    const speedScale = this.speed > 0.1 ? this.speed * 0.08 : 0;
-    this.roadIndex = (this.roadIndex + Math.max(0, Math.round(speedScale))) % this.TOTAL_SEGMENTS;
+    // Update road position (continuous scrolling)
+    this.roadScrollAccum += this.speed * 0.08;
+    if (this.roadScrollAccum >= 1) {
+      const steps = Math.floor(this.roadScrollAccum);
+      this.roadIndex = (this.roadIndex + steps) % this.TOTAL_SEGMENTS;
+      this.roadScrollAccum -= steps;
+    }
     this.distance += this.speed * 0.015;
 
     // Zone changes
@@ -326,19 +331,19 @@ class CarrerasGame {
         return;
       }
 
+      // Pre-compute screen position for drawing
       const pos = this.projectPoint(e.lane, e.depth);
       e.screenX = pos.x;
       e.screenY = pos.y;
       e.screenScale = pos.scale;
 
-      const pp = this.projectPoint(this.lane, 0);
-      const px = pp.x;
-      const py = this.H - 130;
-
-      const hitW = 28 + pos.scale * 16;
-      const hitH = 34 + pos.scale * 28;
-
-      if (Math.abs(px - pos.x) < hitW && Math.abs(py - pos.y) < hitH) {
+      // World-space collision (lane + depth)
+      const laneDist = Math.abs(e.lane - this.lane);
+      if (!e.hit && laneDist < 0.75 && e.depth < 12 && e.depth > -5) {
+        e.hit = true;
+        const pp = this.projectPoint(this.lane, 0);
+        const px = pp.x;
+        const py = this.H - 130;
         if (this.crashCooldown <= 0) {
           this.crashCooldown = 1.0;
           if (this.shield) {
@@ -359,28 +364,29 @@ class CarrerasGame {
               if (window.audioManager) {
                 window.audioManager.playGameOver();
                 if (window.audioManager.music) window.audioManager.music.stop();
-                if (window.audioManager.engine) window.audioManager.stopEngine();
+                window.audioManager.stopEngine();
               }
             }
           }
         }
-      } else if (!e.scoredNear && e.depth < 80 && e.depth > -20 && Math.abs(px - pos.x) < hitW * 2.5) {
+      } else if (!e.scoredNear && e.depth < 50 && e.depth > -10 && laneDist < 2.0 && !e.hit) {
         e.scoredNear = true;
         this.nearMisses++;
         this.combo = Math.min(5, this.combo + 0.5);
         this.score += Math.floor(15 * this.combo);
         if (window.audioManager) window.audioManager.playBonus();
-        this.particles.emit(px, py - 40, 6, ['#ffff00','#00ffff','#fff'], [50, 100], [0.2, 0.4]);
+        const pp2 = this.projectPoint(this.lane, 0);
+        this.particles.emit(pp2.x, this.H - 170, 6, ['#ffff00','#00ffff','#fff'], [50, 100], [0.2, 0.4]);
       }
     });
   }
 
   respawnEnemy(e) {
     e.lane = Math.floor(Math.random() * 5) - 2;
-    e.depth = 80 + Math.random() * 50;
+    e.depth = 120 + Math.random() * 60;
     e.speed = 0.8 + Math.random() * 1.5 + this.level * 0.05;
     e.scoredNear = false;
-    e.passed = false;
+    e.hit = false;
     e.type = Math.random() > 0.85 ? 'truck' : 'car';
     const colors = ['#ff3366','#ffaa00','#00ffff','#ff00ff','#00ff88','#ffff00','#ff6600','#aa44ff'];
     e.color = colors[Math.floor(Math.random() * colors.length)];
