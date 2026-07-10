@@ -254,6 +254,18 @@ canvas {
   touch-action: none;
 }
 
+.unity-frame {
+  display: none;
+  width: min(95vw, 1100px);
+  height: min(calc(100dvh - 94px), 680px);
+  border: 1px solid rgba(127,92,255,0.38);
+  border-radius: 8px;
+  background: #04020e;
+  box-shadow: 0 0 2px #7f5cff, 0 0 24px rgba(127,92,255,0.18), 0 0 70px rgba(0,255,255,0.06);
+}
+
+.unity-frame.active { display: block; }
+
 .touch-controls {
   display: none;
   width: min(680px, 100%);
@@ -347,6 +359,10 @@ canvas {
   canvas {
     max-width: calc(100vw - 12px);
     max-height: calc(100dvh - 212px);
+  }
+  .unity-frame {
+    width: calc(100vw - 12px);
+    height: calc(100dvh - 74px);
   }
   .touch-controls.active { display: flex; }
   .touch-pad {

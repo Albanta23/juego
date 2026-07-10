@@ -7,6 +7,8 @@ const GAMES = [
   { id: 'carreras', name: 'RACING', icon: '🏎️', color: '#ff3366', desc: 'Circuito neon con power-ups.' },
   { id: 'graveknight', name: 'GRAVE KNIGHT', icon: '🛡️', color: '#c8f7ff', desc: 'Arcade de cementerio: salta, lanza y sobrevive.' },
   { id: 'starfighter', name: 'STARFIGHTER 3D', icon: '🚀', color: '#00ffff', desc: 'Nave espacial con asteroides, escudo y jefe.' },
+  { id: 'unity-starrunner', name: 'UNITY STAR RUNNER', icon: '🛰️', color: '#7f5cff', desc: 'Juego Unity WebGL integrado en el arcade.', type: 'unity', url: 'unity/starrunner/index.html' },
+  { id: 'unity-neonmaze', name: 'UNITY NEON MAZE', icon: '🟡', color: '#ffd84d', desc: 'Comecocos 3D moderno con niveles y controles tactiles.', type: 'unity', url: 'unity/neonmaze/index.html' },
 ];
 
 let currentGame = null;
@@ -88,6 +90,7 @@ function launchGame(id) {
   };
 
   const touchControls = document.getElementById('touch-controls');
+  const unityFrame = ensureUnityFrame();
   const isTouchViewport = window.matchMedia('(hover: none), (pointer: coarse), (max-width: 600px)').matches;
   const controlsReserve = isTouchViewport ? Math.min(150, Math.max(112, window.innerHeight * 0.2)) : 0;
   const toolbarReserve = isTouchViewport ? 58 : 78;
@@ -97,8 +100,20 @@ function launchGame(id) {
   canvas.height = maxH;
   canvas.style.width = maxW + 'px';
   canvas.style.height = maxH + 'px';
+  canvas.style.display = 'block';
+  unityFrame.classList.remove('active');
+  unityFrame.removeAttribute('src');
   canvas.tabIndex = 1;
   canvas.focus();
+
+  if (game.type === 'unity') {
+    canvas.style.display = 'none';
+    unityFrame.src = game.url;
+    unityFrame.classList.add('active');
+    document.getElementById('toolbar-score').textContent = 'UNITY WEBGL';
+    setupTouchControls(null);
+    return;
+  }
 
   switch (id) {
     case 'snake': gameInstance = new SnakeGame(canvas); break;
@@ -116,10 +131,29 @@ function launchGame(id) {
 function exitGame() {
   releaseTouchKeys();
   setupTouchControls(null);
+  const unityFrame = document.getElementById('unity-frame');
+  if (unityFrame) {
+    unityFrame.classList.remove('active');
+    unityFrame.removeAttribute('src');
+  }
   if (gameInstance) { gameInstance.destroy(); gameInstance = null; }
   document.getElementById('game-screen').classList.remove('active');
   document.getElementById('dashboard').style.display = 'block';
   initDashboard();
+}
+
+function ensureUnityFrame() {
+  const container = document.querySelector('.game-canvas-container');
+  let frame = document.getElementById('unity-frame');
+  if (!frame) {
+    frame = document.createElement('iframe');
+    frame.id = 'unity-frame';
+    frame.className = 'unity-frame';
+    frame.title = 'Unity WebGL Game';
+    frame.setAttribute('allow', 'fullscreen; gamepad');
+    container.appendChild(frame);
+  }
+  return frame;
 }
 
 function updateScore(score) {
