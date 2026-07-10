@@ -14,9 +14,11 @@ Controles: flechas o WASD en escritorio; botones inferiores y swipe en movil.
 
 ## Integracion WebGL
 
-1. Abre **File > Build Settings**, selecciona **WebGL** y pulsa **Switch Platform**.
-2. Genera el build dentro de una carpeta temporal.
-3. Copia los archivos generados a `web/unity/neonmaze/`, sustituyendo la pagina
-   temporal actual.
+El build WebGL ya esta generado en `web/unity/neonmaze/`. Coolify lo publicara
+al desplegar los cambios del repositorio.
+
+Para regenerarlo tras cambiar el juego, abre **Tools > Neon Maze > Build WebGL**.
+El export se produce directamente en `web/unity/neonmaze/` y evita compresion
+propia de Unity para funcionar en cualquier servidor estatico.
 
 La tarjeta `UNITY NEON MAZE` del panel ya carga esa ruta.
