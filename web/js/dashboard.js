@@ -110,6 +110,8 @@ function launchGame(id) {
     canvas.style.display = 'none';
     unityFrame.src = game.url;
     unityFrame.classList.add('active');
+    unityFrame.onload = () => focusUnityGame(unityFrame);
+    unityFrame.onpointerdown = () => focusUnityGame(unityFrame);
     document.getElementById('toolbar-score').textContent = 'UNITY WEBGL';
     setupTouchControls(null);
     return;
@@ -126,6 +128,20 @@ function launchGame(id) {
   }
   setupTouchControls(id);
   if (gameInstance) gameInstance.start();
+}
+
+function focusUnityGame(frame) {
+  frame.focus();
+  try {
+    const unityCanvas = frame.contentDocument?.getElementById('unity-canvas');
+    if (unityCanvas) {
+      unityCanvas.tabIndex = 0;
+      unityCanvas.focus();
+    }
+    frame.contentWindow?.focus();
+  } catch (_) {
+    // The iframe can still receive focus if deployment headers isolate its origin.
+  }
 }
 
 function exitGame() {

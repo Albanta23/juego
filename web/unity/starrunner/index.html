@@ -52,13 +52,12 @@
       }
 
       var buildUrl = "Build";
-      var buildVersion = "20260710-2";
-      var loaderUrl = buildUrl + "/starrunner.loader.js?v=" + buildVersion;
+      var loaderUrl = buildUrl + "/starrunner.loader.js";
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/starrunner.data?v=" + buildVersion,
-        frameworkUrl: buildUrl + "/starrunner.framework.js?v=" + buildVersion,
-        codeUrl: buildUrl + "/starrunner.wasm?v=" + buildVersion,
+        dataUrl: buildUrl + "/starrunner.data",
+        frameworkUrl: buildUrl + "/starrunner.framework.js",
+        codeUrl: buildUrl + "/starrunner.wasm",
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "StarRunner",

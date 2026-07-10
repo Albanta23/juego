@@ -8,6 +8,7 @@ public class NeonMazeGame : MonoBehaviour
     private const int Columns = 19;
     private const int Rows = 15;
     private const float Tile = 1.1f;
+    private static readonly Vector2Int PlayerSpawn = new Vector2Int(9, 13);
     private readonly string[] maze =
     {
         "###################",
@@ -48,6 +49,11 @@ public class NeonMazeGame : MonoBehaviour
     private float frightenedTimer;
     private float startTimer;
     private bool gameOver;
+    private AudioSource audioSource;
+    private AudioClip dotSound;
+    private AudioClip powerSound;
+    private AudioClip hitSound;
+    private AudioClip levelSound;
 
     private class Ghost
     {
@@ -63,6 +69,7 @@ public class NeonMazeGame : MonoBehaviour
     private void Start()
     {
         BuildScene();
+        BuildAudio();
         StartLevel(true);
     }
 
@@ -133,7 +140,7 @@ public class NeonMazeGame : MonoBehaviour
     {
         ClearDots();
         if (resetScore) { score = 0; lives = 3; level = 1; }
-        playerCell = new Vector2Int(9, 11);
+        playerCell = PlayerSpawn;
         desiredDirection = Vector2Int.left;
         moveDirection = Vector2Int.left;
         moveProgress = 0f;
@@ -239,9 +246,15 @@ public class NeonMazeGame : MonoBehaviour
         dots.Remove(playerCell);
         dotsLeft--;
         score += power ? 50 : 10;
-        if (power) frightenedTimer = 7f;
+        if (power)
+        {
+            frightenedTimer = 7f;
+            PlaySound(powerSound, 0.75f);
+        }
+        else PlaySound(dotSound, 0.28f);
         if (dotsLeft > 0) return;
         level++;
+        PlaySound(levelSound, 0.8f);
         StartLevel(false);
     }
 
@@ -250,6 +263,7 @@ public class NeonMazeGame : MonoBehaviour
         if (frightenedTimer > 0f)
         {
             score += 200;
+            PlaySound(powerSound, 0.65f);
             ghost.cell = ghost.spawn;
             ghost.progress = 0f;
             ghost.respawnTimer = 2f;
@@ -257,8 +271,9 @@ public class NeonMazeGame : MonoBehaviour
             return;
         }
         lives--;
+        PlaySound(hitSound, 0.85f);
         if (lives <= 0) { gameOver = true; messageText = "GAME OVER\nPULSA R O ENTER"; return; }
-        playerCell = new Vector2Int(9, 11);
+        playerCell = PlayerSpawn;
         player.position = World(playerCell) + Vector3.up * 0.48f;
         moveProgress = 0f;
         startTimer = 1.2f;
@@ -267,10 +282,10 @@ public class NeonMazeGame : MonoBehaviour
 
     private void ReadInput()
     {
-        if (Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow)) desiredDirection = Vector2Int.up;
-        if (Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow)) desiredDirection = Vector2Int.down;
-        if (Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow)) desiredDirection = Vector2Int.left;
-        if (Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow)) desiredDirection = Vector2Int.right;
+        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) desiredDirection = Vector2Int.up;
+        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) desiredDirection = Vector2Int.down;
+        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) desiredDirection = Vector2Int.left;
+        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) desiredDirection = Vector2Int.right;
         if (Input.touchCount == 0) return;
         Touch touch = Input.GetTouch(0);
         if (touch.phase != TouchPhase.Ended) return;
@@ -325,6 +340,38 @@ public class NeonMazeGame : MonoBehaviour
     private void CreateHud()
     {
         hudText = "UNITY NEON MAZE";
+    }
+
+    private void BuildAudio()
+    {
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.playOnAwake = false;
+        dotSound = CreateTone("Dot", 540f, 0.055f, false);
+        powerSound = CreateTone("Power", 220f, 0.22f, true);
+        hitSound = CreateTone("Hit", 95f, 0.38f, true);
+        levelSound = CreateTone("Level", 760f, 0.34f, false);
+    }
+
+    private AudioClip CreateTone(string clipName, float frequency, float duration, bool square)
+    {
+        const int sampleRate = 22050;
+        int sampleCount = Mathf.CeilToInt(sampleRate * duration);
+        var samples = new float[sampleCount];
+        for (int i = 0; i < sampleCount; i++)
+        {
+            float wave = Mathf.Sin(2f * Mathf.PI * frequency * i / sampleRate);
+            if (square) wave = wave >= 0f ? 0.75f : -0.75f;
+            float envelope = 1f - (float)i / sampleCount;
+            samples[i] = wave * envelope * 0.35f;
+        }
+        var clip = AudioClip.Create(clipName, sampleCount, 1, sampleRate, false);
+        clip.SetData(samples, 0);
+        return clip;
+    }
+
+    private void PlaySound(AudioClip clip, float volume)
+    {
+        if (audioSource != null && clip != null) audioSource.PlayOneShot(clip, volume);
     }
 
     private void OnGUI()
