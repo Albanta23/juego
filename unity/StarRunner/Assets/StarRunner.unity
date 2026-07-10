@@ -148,6 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2fd89a99a4c40fa2e969ab0a2fb32ade, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  baseMaterial: {fileID: 2100000, guid: 20b8894d16c01e2f78cbaf09366e1fc9, type: 2}
   laneWidth: 2.6
   forwardSpeed: 16
   lateralSpeed: 8

@@ -4,6 +4,8 @@ using UnityEngine.UI;
 
 public class StarRunnerGame : MonoBehaviour
 {
+    public Material baseMaterial;
+
     [Header("Tuning")]
     public float laneWidth = 2.6f;
     public float forwardSpeed = 16f;
@@ -217,7 +219,9 @@ public class StarRunnerGame : MonoBehaviour
 
     private Material MakeMat(Color color)
     {
-        var mat = new Material(Shader.Find("Standard"));
+        var mat = baseMaterial != null
+            ? new Material(baseMaterial)
+            : new Material(Shader.Find("Sprites/Default"));
         mat.color = color;
         mat.EnableKeyword("_EMISSION");
         mat.SetColor("_EmissionColor", color * 0.55f);

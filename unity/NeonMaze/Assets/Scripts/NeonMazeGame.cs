@@ -3,6 +3,8 @@ using UnityEngine;
 
 public class NeonMazeGame : MonoBehaviour
 {
+    public Material baseMaterial;
+
     private const int Columns = 19;
     private const int Rows = 15;
     private const float Tile = 1.1f;
@@ -311,7 +313,9 @@ public class NeonMazeGame : MonoBehaviour
 
     private Material MaterialFor(Color color, float emission)
     {
-        var material = new Material(Shader.Find("Standard"));
+        var material = baseMaterial != null
+            ? new Material(baseMaterial)
+            : new Material(Shader.Find("Sprites/Default"));
         material.color = color;
         material.EnableKeyword("_EMISSION");
         material.SetColor("_EmissionColor", color * emission);
