@@ -1,0 +1,13 @@
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ibrary/
+/[Ll]ogs/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+/[Ss]ettings/
+/[Uu]ser[Ss]ettings/
+/[Tt]emp/
+*.csproj
+*.sln
+*.user
+*.userprefs
