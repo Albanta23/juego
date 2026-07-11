@@ -10,6 +10,8 @@ public class ZombiesToroGame : MonoBehaviour
     public float zombieSpeed = 1.8f;
     public float zombieSpawnInterval = 1.2f;
     public int scorePerKill = 100;
+    public float playerSpeed = 4.2f;
+    public Material baseMaterial;
 
     private class WaypointData
     {
@@ -39,6 +41,11 @@ public class ZombiesToroGame : MonoBehaviour
     private bool gameOver;
     private float nextSpawnTimer;
     private bool showIntro = true;
+    private Vector2 mobileMove;
+    private Vector2 mobileAim;
+    private bool mobileShoot;
+    private int lastScreenWidth;
+    private int lastScreenHeight;
 
     private Camera cam;
     private Renderer bgRenderer;
@@ -85,6 +92,8 @@ public class ZombiesToroGame : MonoBehaviour
         cam.transform.position = new Vector3(0f, 1.6f, -2f);
         cam.transform.LookAt(new Vector3(0f, 1.4f, 20f));
         cam.enabled = true;
+        lastScreenWidth = Screen.width;
+        lastScreenHeight = Screen.height;
     }
 
     private void Start()
@@ -95,6 +104,15 @@ public class ZombiesToroGame : MonoBehaviour
 
     private void BuildScene()
     {
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogDensity = 0.018f;
+        RenderSettings.fogColor = new Color(0.025f, 0.03f, 0.045f);
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+        RenderSettings.ambientSkyColor = new Color(0.08f, 0.1f, 0.16f);
+        RenderSettings.ambientEquatorColor = new Color(0.035f, 0.04f, 0.055f);
+        RenderSettings.ambientGroundColor = new Color(0.015f, 0.012f, 0.018f);
+
         var lightObj = new GameObject("Moon Light");
         var light = lightObj.AddComponent<Light>();
         light.type = LightType.Directional;
@@ -116,7 +134,7 @@ public class ZombiesToroGame : MonoBehaviour
         bgObj.transform.localScale = new Vector3(30f, 16f, 1f);
         bgObj.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
         bgRenderer = bgObj.GetComponent<Renderer>();
-        var bgMat = new Material(Shader.Find("Unlit/Texture"));
+        var bgMat = new Material(baseMaterial);
         bgRenderer.material = bgMat;
 
         fallbackTex = new Texture2D(64, 64);
@@ -154,6 +172,7 @@ public class ZombiesToroGame : MonoBehaviour
                 crosshairTex.SetPixel(x, y, (h || v || dot) ? Color.white : Color.clear);
             }
         crosshairTex.Apply();
+        UpdateCameraLayout();
     }
 
     private void BuildRoad()
@@ -162,7 +181,7 @@ public class ZombiesToroGame : MonoBehaviour
         road.name = "Road";
         road.transform.position = new Vector3(0f, -0.05f, 8f);
         road.transform.localScale = new Vector3(6f, 0.1f, 30f);
-        var rmat = new Material(Shader.Find("Sprites/Default"));
+        var rmat = new Material(baseMaterial);
         rmat.color = new Color(0.06f, 0.06f, 0.08f);
         road.GetComponent<Renderer>().material = rmat;
         streetProps.Add(road);
@@ -173,13 +192,13 @@ public class ZombiesToroGame : MonoBehaviour
             dash.name = "Road Dash";
             dash.transform.position = new Vector3(0f, 0.01f, z);
             dash.transform.localScale = new Vector3(0.6f, 0.02f, 0.9f);
-            var dmat = new Material(Shader.Find("Sprites/Default"));
+            var dmat = new Material(baseMaterial);
             dmat.color = new Color(0.25f, 0.25f, 0.2f);
             dash.GetComponent<Renderer>().material = dmat;
             streetProps.Add(dash);
         }
 
-        var smat = new Material(Shader.Find("Sprites/Default"));
+        var smat = new Material(baseMaterial);
         smat.color = new Color(0.12f, 0.12f, 0.14f);
         var sidewalkL = GameObject.CreatePrimitive(PrimitiveType.Cube);
         sidewalkL.name = "Sidewalk Left";
@@ -237,7 +256,7 @@ public class ZombiesToroGame : MonoBehaviour
                         win.transform.position = new Vector3(xOff + winX, winY + 0.2f, zPos + winZ * side);
                         win.transform.localScale = new Vector3(0.3f, 0.4f, 1f);
                         win.transform.rotation = Quaternion.Euler(0, side == -1 ? -90 : 90, 0);
-                        var wmat = new Material(Shader.Find("Sprites/Default"));
+                        var wmat = new Material(baseMaterial);
                         wmat.color = (float)rng.NextDouble() > 0.4f ? windowOn : windowOff;
                         if (wmat.color == windowOn) wmat.color *= new Color(1f, 1f, 1f, 0.7f);
                         win.GetComponent<Renderer>().material = wmat;
@@ -258,9 +277,17 @@ public class ZombiesToroGame : MonoBehaviour
 
     private Material MakeMat(Color c)
     {
-        var m = new Material(Shader.Find("Sprites/Default"));
+        var m = new Material(baseMaterial);
         m.color = c;
         return m;
+    }
+
+    private Material MakeLitMat(Color color, float glossiness = 0.08f)
+    {
+        if (baseMaterial == null) throw new System.InvalidOperationException("Zombies Toro runtime material is missing.");
+        var material = new Material(baseMaterial) { color = color };
+        if (material.HasProperty("_Glossiness")) material.SetFloat("_Glossiness", glossiness);
+        return material;
     }
 
     private void BuildStreetProps()
@@ -273,7 +300,7 @@ public class ZombiesToroGame : MonoBehaviour
                 post.name = $"Light Post {side}";
                 post.transform.position = new Vector3(side * 3.8f, 1.5f, z);
                 post.transform.localScale = new Vector3(0.06f, 1.5f, 0.06f);
-                var pmat = new Material(Shader.Find("Sprites/Default"));
+                var pmat = new Material(baseMaterial);
                 pmat.color = new Color(0.15f, 0.15f, 0.15f);
                 post.GetComponent<Renderer>().material = pmat;
                 streetProps.Add(post);
@@ -282,7 +309,7 @@ public class ZombiesToroGame : MonoBehaviour
                 glow.name = $"Lamp {side}";
                 glow.transform.position = new Vector3(side * 3.8f, 3f, z);
                 glow.transform.localScale = Vector3.one * 0.2f;
-                var gmat = new Material(Shader.Find("Sprites/Default"));
+                var gmat = new Material(baseMaterial);
                 gmat.color = new Color(1f, 0.7f, 0.3f);
                 glow.GetComponent<Renderer>().material = gmat;
                 streetProps.Add(glow);
@@ -359,35 +386,16 @@ public class ZombiesToroGame : MonoBehaviour
         var root = new GameObject("Zombie");
         root.transform.position = new Vector3(spawnX, 0f, spawnZ);
 
-        var skinMat = new Material(Shader.Find("Standard"));
-        skinMat.color = skinColor;
-        skinMat.SetFloat("_Glossiness", 0.1f);
-
-        var shirtMat = new Material(Shader.Find("Standard"));
-        shirtMat.color = shirtColor;
-        shirtMat.SetFloat("_Glossiness", 0.05f);
-
-        var pantsMat = new Material(Shader.Find("Standard"));
-        pantsMat.color = new Color32(35, 35, 40, 255);
-        pantsMat.SetFloat("_Glossiness", 0.05f);
-
-        var bloodMat = new Material(Shader.Find("Standard"));
-        bloodMat.color = new Color32(80, 10, 10, 255);
-        bloodMat.SetFloat("_Glossiness", 0.3f);
-
-        var eyeWhiteMat = new Material(Shader.Find("Standard"));
-        eyeWhiteMat.color = new Color32(220, 210, 200, 255);
-
-        var eyePupilMat = new Material(Shader.Find("Standard"));
-        eyePupilMat.color = new Color32(120, 10, 10, 255);
-
-        var teethMat = new Material(Shader.Find("Standard"));
-        teethMat.color = new Color32(200, 190, 160, 255);
+        var skinMat = MakeLitMat(skinColor, 0.1f);
+        var shirtMat = MakeLitMat(shirtColor, 0.05f);
+        var pantsMat = MakeLitMat(new Color32(35, 35, 40, 255), 0.05f);
+        var bloodMat = MakeLitMat(new Color32(80, 10, 10, 255), 0.3f);
+        var eyeWhiteMat = MakeLitMat(new Color32(220, 210, 200, 255));
+        var eyePupilMat = MakeLitMat(new Color32(120, 10, 10, 255));
+        var teethMat = MakeLitMat(new Color32(200, 190, 160, 255));
 
         var hairColor = new Color32((byte)Random.Range(20, 60), (byte)Random.Range(15, 45), (byte)Random.Range(10, 30), 255);
-        var hairMat = new Material(Shader.Find("Standard"));
-        hairMat.color = hairColor;
-        hairMat.SetFloat("_Glossiness", 0.4f);
+        var hairMat = MakeLitMat(hairColor, 0.4f);
 
         var torso = GameObject.CreatePrimitive(PrimitiveType.Cube);
         torso.name = "Torso";
@@ -480,19 +488,19 @@ public class ZombiesToroGame : MonoBehaviour
 
         for (int i = -1; i <= 1; i += 2)
         {
-            var upperArm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var upperArm = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             upperArm.name = "UpperArm";
             upperArm.transform.SetParent(root.transform, false);
             upperArm.transform.localPosition = new Vector3(i * 0.38f, 1.15f, 0f);
-            upperArm.transform.localScale = new Vector3(0.12f, 0.4f, 0.12f);
+            upperArm.transform.localScale = new Vector3(0.12f, 0.2f, 0.12f);
             upperArm.GetComponent<Renderer>().material = shirtMat;
             Destroy(upperArm.GetComponent<Collider>());
 
-            var forearm = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var forearm = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             forearm.name = "Forearm";
             forearm.transform.SetParent(root.transform, false);
             forearm.transform.localPosition = new Vector3(i * 0.4f, 0.82f, -0.08f);
-            forearm.transform.localScale = new Vector3(0.1f, 0.35f, 0.1f);
+            forearm.transform.localScale = new Vector3(0.1f, 0.18f, 0.1f);
             forearm.GetComponent<Renderer>().material = skinMat;
             Destroy(forearm.GetComponent<Collider>());
 
@@ -534,11 +542,11 @@ public class ZombiesToroGame : MonoBehaviour
 
         for (int i = -1; i <= 1; i += 2)
         {
-            var shin = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            var shin = GameObject.CreatePrimitive(PrimitiveType.Capsule);
             shin.name = "Shin";
             shin.transform.SetParent(root.transform, false);
             shin.transform.localPosition = new Vector3(i * 0.13f, 0.28f, 0f);
-            shin.transform.localScale = new Vector3(0.12f, 0.35f, 0.12f);
+            shin.transform.localScale = new Vector3(0.12f, 0.18f, 0.12f);
             shin.GetComponent<Renderer>().material = pantsMat;
             Destroy(shin.GetComponent<Collider>());
 
@@ -547,7 +555,7 @@ public class ZombiesToroGame : MonoBehaviour
             foot.transform.SetParent(root.transform, false);
             foot.transform.localPosition = new Vector3(i * 0.13f, 0.06f, -0.06f);
             foot.transform.localScale = new Vector3(0.12f, 0.08f, 0.2f);
-            foot.GetComponent<Renderer>().material = new Material(Shader.Find("Standard")) { color = new Color32(40, 35, 30, 255) };
+            foot.GetComponent<Renderer>().material = MakeLitMat(new Color32(40, 35, 30, 255));
             Destroy(foot.GetComponent<Collider>());
         }
 
@@ -565,7 +573,7 @@ public class ZombiesToroGame : MonoBehaviour
         zombies.Add(new Zombie
         {
             transform = root.transform,
-            health = 1f,
+            health = 1f + Mathf.Floor(wave / 4f),
             speed = zombieSpeed + Random.Range(-0.3f, 0.3f),
             targetX = Random.Range(-1f, 1f)
         });
@@ -575,17 +583,23 @@ public class ZombiesToroGame : MonoBehaviour
 
     private void Update()
     {
+        ReadMobileInput();
+
         if (gameOver)
         {
-            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Return)) ResetGame();
+            if (Input.GetKeyDown(KeyCode.R) || Input.GetKeyDown(KeyCode.Return) || mobileShoot) ResetGame();
             return;
         }
 
         if (showIntro)
         {
-            if (Input.anyKeyDown) showIntro = false;
+            if (Input.anyKeyDown || Input.touchCount > 0 || Input.GetMouseButtonDown(0)) showIntro = false;
             return;
         }
+
+        if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight) UpdateCameraLayout();
+
+        HandlePlayerMovement();
 
         if (!waveComplete && zombiesSpawnedThisWave < zombiesPerWave + wave)
         {
@@ -613,10 +627,11 @@ public class ZombiesToroGame : MonoBehaviour
             if (z.transform == null) { zombies.RemoveAt(i); continue; }
 
             Vector3 pos = z.transform.position;
-            pos.z = Mathf.MoveTowards(pos.z, -0.5f, z.speed * Time.deltaTime);
-            pos.x = Mathf.MoveTowards(pos.x, z.targetX, z.speed * 0.2f * Time.deltaTime);
+            Vector3 player = cam.transform.position;
+            pos.z = Mathf.MoveTowards(pos.z, player.z + 0.9f, z.speed * Time.deltaTime);
+            pos.x = Mathf.MoveTowards(pos.x, player.x, z.speed * 0.55f * Time.deltaTime);
             z.transform.position = pos;
-            z.transform.LookAt(new Vector3(0f, 1.0f, -1f));
+            z.transform.LookAt(new Vector3(player.x, 1.0f, player.z));
 
             float leanAngle = 8f + Mathf.Sin(time * 3f + i) * 5f;
             z.transform.localRotation = Quaternion.Euler(leanAngle, z.transform.localRotation.eulerAngles.y, Mathf.Sin(time * 4f + i * 0.5f) * 3f);
@@ -626,7 +641,10 @@ public class ZombiesToroGame : MonoBehaviour
                 if (child.name == "UpperArm" || child.name == "Forearm" || child.name == "Hand")
                 {
                     child.localPosition = new Vector3(child.localPosition.x, child.localPosition.y, Mathf.Lerp(child.localPosition.z, -0.2f, Time.deltaTime * 5f));
+                    child.localRotation = Quaternion.Euler(65f + Mathf.Sin(time * 4f + i) * 14f, 0f, 0f);
                 }
+                if (child.name == "Shin")
+                    child.localRotation = Quaternion.Euler(Mathf.Sin(time * 5f + i + child.localPosition.x * 8f) * 22f, 0f, 0f);
                 if (child.name == "Jaw")
                 {
                     child.localScale = new Vector3(0.28f, 0.12f + Mathf.Abs(Mathf.Sin(time * 5f)) * 0.04f, 0.18f);
@@ -637,7 +655,7 @@ public class ZombiesToroGame : MonoBehaviour
                 }
             }
 
-            if (pos.z <= -0.3f)
+            if (Vector2.Distance(new Vector2(pos.x, pos.z), new Vector2(player.x, player.z)) <= 1.05f)
             {
                 lives--;
                 PlaySound(deathSound, 0.8f);
@@ -651,14 +669,15 @@ public class ZombiesToroGame : MonoBehaviour
 
     private void HandleShooting()
     {
-        bool shoot = Input.GetMouseButtonDown(0);
-        if (Input.touchCount > 0 && Input.GetTouch(0).phase == TouchPhase.Began) shoot = true;
+        bool shoot = (Application.isMobilePlatform || Input.touchCount > 0) ? mobileShoot : Input.GetMouseButtonDown(0);
+        shoot |= Input.GetKeyDown(KeyCode.Space);
         if (!shoot) return;
 
-        Ray ray = cam.ScreenPointToRay(Input.touchCount > 0 ? (Vector3)Input.GetTouch(0).position : Input.mousePosition);
-        if (!Physics.Raycast(ray, out RaycastHit hit, 50f)) return;
-
+        Vector3 aim = mobileShoot ? (Vector3)mobileAim : Input.mousePosition;
+        if (Input.GetKeyDown(KeyCode.Space)) aim = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
+        Ray ray = cam.ScreenPointToRay(aim);
         PlaySound(shootSound, 0.4f);
+        if (!Physics.Raycast(ray, out RaycastHit hit, 50f)) return;
 
         foreach (var z in zombies)
         {
@@ -690,6 +709,47 @@ public class ZombiesToroGame : MonoBehaviour
         }
     }
 
+    private void ReadMobileInput()
+    {
+        mobileMove = Vector2.zero;
+        mobileShoot = false;
+        Vector2 stickCenter = new Vector2(Mathf.Max(76f, Screen.width * 0.12f), Mathf.Max(82f, Screen.height * 0.16f));
+        float stickRadius = Mathf.Clamp(Mathf.Min(Screen.width, Screen.height) * 0.12f, 56f, 92f);
+
+        for (int i = 0; i < Input.touchCount; i++)
+        {
+            Touch touch = Input.GetTouch(i);
+            if (touch.position.x < Screen.width * 0.46f && touch.position.y < Screen.height * 0.48f)
+                mobileMove = Vector2.ClampMagnitude((touch.position - stickCenter) / stickRadius, 1f);
+            else if (touch.phase == TouchPhase.Began)
+            {
+                mobileShoot = true;
+                mobileAim = touch.position;
+            }
+        }
+    }
+
+    private void HandlePlayerMovement()
+    {
+        float horizontal = Input.GetAxisRaw("Horizontal") + mobileMove.x;
+        float vertical = Input.GetAxisRaw("Vertical") + mobileMove.y;
+        Vector3 input = Vector3.ClampMagnitude(new Vector3(horizontal, 0f, vertical), 1f);
+        Vector3 position = cam.transform.position + input * playerSpeed * Time.deltaTime;
+        position.x = Mathf.Clamp(position.x, -2.55f, 2.55f);
+        position.z = Mathf.Clamp(position.z, -2.2f, 2.2f);
+        position.y = 1.6f + Mathf.Sin(Time.time * 10f) * 0.015f * input.magnitude;
+        cam.transform.position = position;
+        cam.transform.rotation = Quaternion.Euler(1.5f, 0f, 0f);
+    }
+
+    private void UpdateCameraLayout()
+    {
+        lastScreenWidth = Screen.width;
+        lastScreenHeight = Screen.height;
+        float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 1.6f;
+        cam.fieldOfView = aspect < 1f ? 78f : aspect < 1.45f ? 70f : 64f;
+    }
+
     private void SpawnBloodEffect(Vector3 pos)
     {
         for (int i = 0; i < 6; i++)
@@ -698,8 +758,7 @@ public class ZombiesToroGame : MonoBehaviour
             p.name = "Blood";
             p.transform.position = pos + Random.insideUnitSphere * 0.2f;
             p.transform.localScale = Vector3.one * Random.Range(0.04f, 0.1f);
-            var mat = new Material(Shader.Find("Standard"));
-            mat.color = new Color32((byte)Random.Range(60, 120), 5, 5, 255);
+            var mat = MakeLitMat(new Color32((byte)Random.Range(60, 120), 5, 5, 255), 0.2f);
             p.GetComponent<Renderer>().material = mat;
             Destroy(p.GetComponent<Collider>());
             StartCoroutine(FadeOut(p, Random.Range(0.3f, 0.8f)));
@@ -714,9 +773,9 @@ public class ZombiesToroGame : MonoBehaviour
             elapsed += Time.deltaTime;
             float t = elapsed / duration;
             obj.transform.localScale = Vector3.Lerp(obj.transform.localScale, Vector3.zero, t);
-            if (obj != null) Destroy(obj);
             yield return null;
         }
+        if (obj != null) Destroy(obj);
     }
 
     private void ClearZombies()
@@ -773,7 +832,7 @@ public class ZombiesToroGame : MonoBehaviour
             var ctrlStyle = new GUIStyle(hudStyle) { fontSize = Mathf.Clamp(Screen.width / 35, 16, 22), alignment = TextAnchor.UpperLeft, wordWrap = true };
             string controls = "CONTROLES:\n" +
                 "🖱️ CLICK IZQUIERDO / TAP → Disparar\n" +
-                "⬆️⬇️⬅️➡️  Flechas → Mover cámara (opcional)\n" +
+                "WASD / FLECHAS → Moverse por la calle\n" +
                 "🔘 Botones \"IR A...\" → Cambiar de calle al completar oleada\n" +
                 "R / ENTER → Reiniciar al morir";
             GUI.Label(new Rect(Screen.width * 0.1f, Screen.height * 0.58f, Screen.width * 0.8f, 200f), controls, ctrlStyle);
@@ -795,6 +854,22 @@ public class ZombiesToroGame : MonoBehaviour
 
         float cs = Mathf.Clamp(Screen.width * 0.025f, 14f, 28f);
         GUI.DrawTexture(new Rect(Screen.width * 0.5f - cs * 0.5f, Screen.height * 0.5f - cs * 0.5f, cs, cs), crosshairTex);
+
+        if (Application.isMobilePlatform || Input.touchSupported || Screen.width < 900)
+        {
+            float radius = Mathf.Clamp(Mathf.Min(Screen.width, Screen.height) * 0.12f, 56f, 92f);
+            float centerX = Mathf.Max(76f, Screen.width * 0.12f);
+            float centerY = Screen.height - Mathf.Max(82f, Screen.height * 0.16f);
+            var padStyle = new GUIStyle(GUI.skin.box) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.RoundToInt(radius * 0.24f) };
+            GUI.color = new Color(1f, 1f, 1f, 0.5f);
+            GUI.Box(new Rect(centerX - radius, centerY - radius, radius * 2f, radius * 2f), "MOVE", padStyle);
+            float knob = radius * 0.64f;
+            GUI.Box(new Rect(centerX + mobileMove.x * radius - knob * 0.5f, centerY - mobileMove.y * radius - knob * 0.5f, knob, knob), "", padStyle);
+
+            float fireSize = radius * 1.35f;
+            GUI.Box(new Rect(Screen.width - fireSize - 20f, Screen.height - fireSize - 24f, fireSize, fireSize), "FIRE", new GUIStyle(GUI.skin.box) { alignment = TextAnchor.MiddleCenter, fontSize = Mathf.RoundToInt(radius * 0.28f), fontStyle = FontStyle.Bold });
+            GUI.color = Color.white;
+        }
 
         if (!waveComplete)
         {

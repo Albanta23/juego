@@ -153,6 +153,8 @@ MonoBehaviour:
   zombieSpeed: 1.8
   zombieSpawnInterval: 1.2
   scorePerKill: 100
+  playerSpeed: 4.2
+  baseMaterial: {fileID: 2100000, guid: 92eee9067ce6f137db29147d41e689d6, type: 2}
 --- !u!4 &450300773
 Transform:
   m_ObjectHideFlags: 0
