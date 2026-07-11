@@ -18,18 +18,51 @@ public class ZombiesToroGame : MonoBehaviour
         public string name;
         public int[] connections;
         public string textureName;
-        public WaypointData(string n, int[] c, string t) { name = n; connections = c; textureName = t; }
+        public string mood;
+        public int seed;
+        public int theme;
+        public Color fogColor;
+        public Color skyColor;
+        public Color roadColor;
+        public Color sidewalkColor;
+        public Color wallA;
+        public Color wallB;
+        public Color lampColor;
+        public WaypointData(string n, int[] c, string t, string m, int s, int th, Color fog, Color sky, Color road, Color sidewalk, Color a, Color b, Color lamp)
+        {
+            name = n;
+            connections = c;
+            textureName = t;
+            mood = m;
+            seed = s;
+            theme = th;
+            fogColor = fog;
+            skyColor = sky;
+            roadColor = road;
+            sidewalkColor = sidewalk;
+            wallA = a;
+            wallB = b;
+            lampColor = lamp;
+        }
     }
 
     private static readonly WaypointData[] ToroWaypoints =
     {
-        new WaypointData("Plaza Mayor", new int[]{1, 2}, "toro_ayuntamiento"),
-        new WaypointData("Colegiata Santa Maria", new int[]{0, 3, 4}, "toro_colegiata"),
-        new WaypointData("Puerta del Reloj", new int[]{0, 4}, "toro_calle1"),
-        new WaypointData("Mirador del Duero", new int[]{1}, "toro_puente"),
-        new WaypointData("Calle Reina", new int[]{1, 2, 5}, "toro_calle1"),
-        new WaypointData("Puerta de la Corredera", new int[]{4}, "toro_plaza_toros")
+        new WaypointData("Plaza Mayor", new int[]{1, 2}, "toro_ayuntamiento", "plaza infectada", 42, 0, new Color(0.025f, 0.03f, 0.045f), new Color(0.08f, 0.1f, 0.16f), new Color(0.055f, 0.055f, 0.07f), new Color(0.12f, 0.11f, 0.10f), new Color(0.16f, 0.12f, 0.09f), new Color(0.10f, 0.09f, 0.08f), new Color(1f, 0.72f, 0.35f)),
+        new WaypointData("Colegiata Santa Maria", new int[]{0, 3, 4}, "toro_colegiata", "zona monumental", 108, 1, new Color(0.035f, 0.038f, 0.055f), new Color(0.06f, 0.075f, 0.11f), new Color(0.045f, 0.047f, 0.055f), new Color(0.14f, 0.13f, 0.12f), new Color(0.18f, 0.16f, 0.13f), new Color(0.10f, 0.10f, 0.12f), new Color(0.65f, 0.82f, 1f)),
+        new WaypointData("Puerta del Reloj", new int[]{0, 4}, "toro_calle1", "calle estrecha", 211, 2, new Color(0.04f, 0.028f, 0.026f), new Color(0.10f, 0.07f, 0.055f), new Color(0.05f, 0.044f, 0.04f), new Color(0.13f, 0.105f, 0.085f), new Color(0.15f, 0.105f, 0.075f), new Color(0.075f, 0.075f, 0.08f), new Color(1f, 0.55f, 0.32f)),
+        new WaypointData("Mirador del Duero", new int[]{1}, "toro_puente", "niebla del rio", 314, 3, new Color(0.02f, 0.045f, 0.055f), new Color(0.045f, 0.08f, 0.10f), new Color(0.045f, 0.05f, 0.052f), new Color(0.10f, 0.12f, 0.12f), new Color(0.08f, 0.11f, 0.12f), new Color(0.05f, 0.08f, 0.09f), new Color(0.45f, 0.90f, 1f)),
+        new WaypointData("Calle Reina", new int[]{1, 2, 5}, "toro_calle1", "comercios apagados", 512, 4, new Color(0.045f, 0.025f, 0.045f), new Color(0.11f, 0.06f, 0.12f), new Color(0.052f, 0.047f, 0.062f), new Color(0.12f, 0.10f, 0.13f), new Color(0.12f, 0.08f, 0.14f), new Color(0.08f, 0.08f, 0.11f), new Color(0.85f, 0.55f, 1f)),
+        new WaypointData("Puerta de la Corredera", new int[]{4, 0}, "toro_plaza_toros", "entrada de la arena", 777, 5, new Color(0.055f, 0.035f, 0.025f), new Color(0.12f, 0.07f, 0.04f), new Color(0.06f, 0.045f, 0.035f), new Color(0.16f, 0.12f, 0.09f), new Color(0.18f, 0.10f, 0.06f), new Color(0.10f, 0.07f, 0.055f), new Color(1f, 0.45f, 0.20f))
     };
+
+    private class FlickerLight
+    {
+        public Material material;
+        public Color baseColor;
+        public float phase;
+        public float amount;
+    }
 
     private int currentWaypoint;
     private int score;
@@ -40,6 +73,10 @@ public class ZombiesToroGame : MonoBehaviour
     private bool waveComplete;
     private bool gameOver;
     private float nextSpawnTimer;
+    private float autoAdvanceTimer;
+    private int pendingWaypoint = -1;
+    private float transitionFlash;
+    private float scenarioBannerTimer;
     private bool showIntro = true;
     private Vector2 mobileMove;
     private Vector2 mobileAim;
@@ -49,6 +86,8 @@ public class ZombiesToroGame : MonoBehaviour
 
     private Camera cam;
     private Renderer bgRenderer;
+    private Light moonLight;
+    private Light streetLight;
     private Texture2D fallbackTex;
     private readonly List<Zombie> zombies = new List<Zombie>();
     private AudioSource audioSource;
@@ -73,6 +112,8 @@ public class ZombiesToroGame : MonoBehaviour
 
     private readonly List<GameObject> buildings = new List<GameObject>();
     private readonly List<GameObject> streetProps = new List<GameObject>();
+    private readonly List<Transform> roadDashTransforms = new List<Transform>();
+    private readonly List<FlickerLight> flickerLights = new List<FlickerLight>();
 
     private class Zombie
     {
@@ -121,18 +162,18 @@ public class ZombiesToroGame : MonoBehaviour
         RenderSettings.ambientGroundColor = new Color(0.015f, 0.012f, 0.018f);
 
         var lightObj = new GameObject("Moon Light");
-        var light = lightObj.AddComponent<Light>();
-        light.type = LightType.Directional;
-        light.intensity = 0.5f;
-        light.color = new Color(0.4f, 0.5f, 0.7f);
+        moonLight = lightObj.AddComponent<Light>();
+        moonLight.type = LightType.Directional;
+        moonLight.intensity = 0.5f;
+        moonLight.color = new Color(0.4f, 0.5f, 0.7f);
         lightObj.transform.rotation = Quaternion.Euler(35f, -40f, 0f);
 
         var ambient = new GameObject("Street Light");
-        var alight = ambient.AddComponent<Light>();
-        alight.type = LightType.Point;
-        alight.intensity = 1.2f;
-        alight.range = 15f;
-        alight.color = new Color(1f, 0.7f, 0.3f);
+        streetLight = ambient.AddComponent<Light>();
+        streetLight.type = LightType.Point;
+        streetLight.intensity = 1.2f;
+        streetLight.range = 15f;
+        streetLight.color = new Color(1f, 0.7f, 0.3f);
         ambient.transform.position = new Vector3(0f, 4f, 10f);
 
         var bgObj = GameObject.CreatePrimitive(PrimitiveType.Quad);
@@ -150,10 +191,6 @@ public class ZombiesToroGame : MonoBehaviour
                 fallbackTex.SetPixel(x, y, Random.value > 0.95f ? new Color(1f, 0.8f, 0.4f) : new Color(0.02f, 0.01f, 0.04f));
         fallbackTex.Apply();
         bgMat.mainTexture = fallbackTex;
-
-        BuildRoad();
-        BuildBuildings();
-        BuildStreetProps();
 
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
@@ -187,14 +224,14 @@ public class ZombiesToroGame : MonoBehaviour
         UpdateCameraLayout();
     }
 
-    private void BuildRoad()
+    private void BuildRoad(WaypointData wp)
     {
         var road = GameObject.CreatePrimitive(PrimitiveType.Cube);
         road.name = "Road";
         road.transform.position = new Vector3(0f, -0.05f, 8f);
         road.transform.localScale = new Vector3(6f, 0.1f, 30f);
         var rmat = new Material(baseMaterial);
-        rmat.color = new Color(0.06f, 0.06f, 0.08f);
+        rmat.color = wp.roadColor;
         road.GetComponent<Renderer>().material = rmat;
         streetProps.Add(road);
 
@@ -205,13 +242,14 @@ public class ZombiesToroGame : MonoBehaviour
             dash.transform.position = new Vector3(0f, 0.01f, z);
             dash.transform.localScale = new Vector3(0.6f, 0.02f, 0.9f);
             var dmat = new Material(baseMaterial);
-            dmat.color = new Color(0.25f, 0.25f, 0.2f);
+            dmat.color = Color.Lerp(wp.lampColor, Color.white, 0.25f) * 0.55f;
             dash.GetComponent<Renderer>().material = dmat;
             streetProps.Add(dash);
+            roadDashTransforms.Add(dash.transform);
         }
 
         var smat = new Material(baseMaterial);
-        smat.color = new Color(0.12f, 0.12f, 0.14f);
+        smat.color = wp.sidewalkColor;
         var sidewalkL = GameObject.CreatePrimitive(PrimitiveType.Cube);
         sidewalkL.name = "Sidewalk Left";
         sidewalkL.transform.position = new Vector3(-3.5f, 0.05f, 8f);
@@ -227,25 +265,27 @@ public class ZombiesToroGame : MonoBehaviour
         streetProps.Add(sidewalkR);
     }
 
-    private void BuildBuildings()
+    private void BuildBuildings(WaypointData wp)
     {
-        System.Random rng = new System.Random(42);
+        System.Random rng = new System.Random(wp.seed);
         Color[] wallColors = {
-            new Color(0.12f, 0.10f, 0.08f), new Color(0.15f, 0.12f, 0.10f),
-            new Color(0.10f, 0.12f, 0.14f), new Color(0.14f, 0.10f, 0.12f),
-            new Color(0.08f, 0.10f, 0.10f),
+            wp.wallA,
+            wp.wallB,
+            Color.Lerp(wp.wallA, wp.wallB, 0.35f),
+            Color.Lerp(wp.wallA, Color.black, 0.28f),
+            Color.Lerp(wp.wallB, wp.skyColor, 0.22f),
         };
-        Color windowOn = new Color(1f, 0.8f, 0.4f);
+        Color windowOn = Color.Lerp(wp.lampColor, Color.white, 0.18f);
         Color windowOff = new Color(0.02f, 0.02f, 0.03f);
 
         for (int side = -1; side <= 1; side += 2)
             for (int b = 0; b < 6; b++)
             {
                 float zPos = b * 3.8f + 1f;
-                float width = (float)rng.NextDouble() * 1.8f + 1.5f;
-                float height = (float)rng.NextDouble() * 2.5f + 2.5f;
+                float width = (float)rng.NextDouble() * (wp.theme == 2 ? 1.0f : 1.8f) + (wp.theme == 2 ? 1.1f : 1.5f);
+                float height = (float)rng.NextDouble() * (wp.theme == 1 ? 3.8f : 2.5f) + 2.5f;
                 float depth = (float)rng.NextDouble() * 1.5f + 1.0f;
-                float xOff = side * (4.2f + (float)rng.NextDouble() * 0.8f);
+                float xOff = side * ((wp.theme == 2 ? 4.1f : 5.0f) + (float)rng.NextDouble() * 0.9f);
 
                 var building = GameObject.CreatePrimitive(PrimitiveType.Cube);
                 building.name = $"Building {side} {b}";
@@ -270,7 +310,17 @@ public class ZombiesToroGame : MonoBehaviour
                         win.transform.rotation = Quaternion.Euler(0, side == -1 ? -90 : 90, 0);
                         var wmat = new Material(baseMaterial);
                         wmat.color = (float)rng.NextDouble() > 0.4f ? windowOn : windowOff;
-                        if (wmat.color == windowOn) wmat.color *= new Color(1f, 1f, 1f, 0.7f);
+                        if (wmat.color == windowOn)
+                        {
+                            wmat.color *= 0.7f;
+                            flickerLights.Add(new FlickerLight
+                            {
+                                material = wmat,
+                                baseColor = wmat.color,
+                                phase = (float)rng.NextDouble() * 6.28f,
+                                amount = 0.16f + (float)rng.NextDouble() * 0.18f
+                            });
+                        }
                         win.GetComponent<Renderer>().material = wmat;
                         buildings.Add(win);
                     }
@@ -302,9 +352,9 @@ public class ZombiesToroGame : MonoBehaviour
         return material;
     }
 
-    private void BuildStreetProps()
+    private void BuildStreetProps(WaypointData wp)
     {
-        for (float z = 1f; z < 20f; z += 4f)
+        for (float z = 1f; z < 24f; z += 4f)
         {
             for (int side = -1; side <= 1; side += 2)
             {
@@ -322,11 +372,205 @@ public class ZombiesToroGame : MonoBehaviour
                 glow.transform.position = new Vector3(side * 3.8f, 3f, z);
                 glow.transform.localScale = Vector3.one * 0.2f;
                 var gmat = new Material(baseMaterial);
-                gmat.color = new Color(1f, 0.7f, 0.3f);
+                gmat.color = wp.lampColor;
                 glow.GetComponent<Renderer>().material = gmat;
                 streetProps.Add(glow);
+                flickerLights.Add(new FlickerLight { material = gmat, baseColor = gmat.color, phase = z * 0.73f + side, amount = 0.22f });
             }
         }
+
+        AddScenarioProps(wp);
+    }
+
+    private void AddScenarioProps(WaypointData wp)
+    {
+        switch (wp.theme)
+        {
+            case 0:
+                AddFountain(new Vector3(0f, 0.12f, 12f), wp.lampColor);
+                AddBarricade(new Vector3(-1.8f, 0.25f, 5.5f), 18f);
+                AddBarricade(new Vector3(2.0f, 0.25f, 16f), -12f);
+                break;
+            case 1:
+                AddBellTower(new Vector3(0f, 0f, 18f), wp.wallA, wp.lampColor);
+                AddCandles(new Vector3(-2.6f, 0.1f, 8f), wp.lampColor);
+                AddCandles(new Vector3(2.5f, 0.1f, 13f), wp.lampColor);
+                break;
+            case 2:
+                AddArch(new Vector3(0f, 0f, 18f), wp.wallA);
+                AddHangingSign(new Vector3(-3.1f, 2.2f, 7f), wp.lampColor);
+                AddHangingSign(new Vector3(3.1f, 2.0f, 13f), wp.lampColor);
+                break;
+            case 3:
+                AddBridgeRail(-1);
+                AddBridgeRail(1);
+                AddRiverGlow(wp.lampColor);
+                break;
+            case 4:
+                AddAbandonedCar(new Vector3(-2f, 0.28f, 10.5f), wp.lampColor);
+                AddMarketStall(new Vector3(2.8f, 0.65f, 7.5f), wp.wallA, wp.lampColor);
+                AddMarketStall(new Vector3(-2.9f, 0.65f, 15f), wp.wallB, wp.lampColor);
+                break;
+            default:
+                AddBullringGate(new Vector3(0f, 0f, 18f), wp.wallA, wp.lampColor);
+                AddBarricade(new Vector3(-2f, 0.25f, 8f), -16f);
+                AddBarricade(new Vector3(2f, 0.25f, 14f), 16f);
+                break;
+        }
+    }
+
+    private GameObject AddCube(string name, Vector3 pos, Vector3 scale, Color color)
+    {
+        var obj = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        obj.name = name;
+        obj.transform.position = pos;
+        obj.transform.localScale = scale;
+        obj.GetComponent<Renderer>().material = MakeMat(color);
+        streetProps.Add(obj);
+        return obj;
+    }
+
+    private GameObject AddCylinder(string name, Vector3 pos, Vector3 scale, Color color)
+    {
+        var obj = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        obj.name = name;
+        obj.transform.position = pos;
+        obj.transform.localScale = scale;
+        obj.GetComponent<Renderer>().material = MakeMat(color);
+        streetProps.Add(obj);
+        return obj;
+    }
+
+    private void AddFountain(Vector3 pos, Color lightColor)
+    {
+        AddCylinder("Dry Fountain Base", pos, new Vector3(1.0f, 0.16f, 1.0f), new Color(0.12f, 0.12f, 0.13f));
+        AddCylinder("Dry Fountain Column", pos + new Vector3(0f, 0.42f, 0f), new Vector3(0.18f, 0.42f, 0.18f), new Color(0.18f, 0.18f, 0.18f));
+        var glow = AddCylinder("Infected Fountain Glow", pos + new Vector3(0f, 0.26f, 0f), new Vector3(0.72f, 0.04f, 0.72f), Color.Lerp(lightColor, Color.red, 0.45f));
+        var mat = glow.GetComponent<Renderer>().material;
+        flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = 1.2f, amount = 0.35f });
+    }
+
+    private void AddBarricade(Vector3 pos, float yaw)
+    {
+        var root = AddCube("Police Barricade", pos, new Vector3(2.1f, 0.16f, 0.16f), new Color(0.46f, 0.40f, 0.22f));
+        root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        AddCube("Barricade Leg", pos + new Vector3(-0.7f, -0.18f, 0f), new Vector3(0.12f, 0.35f, 0.12f), new Color(0.20f, 0.16f, 0.10f)).transform.rotation = root.transform.rotation;
+        AddCube("Barricade Leg", pos + new Vector3(0.7f, -0.18f, 0f), new Vector3(0.12f, 0.35f, 0.12f), new Color(0.20f, 0.16f, 0.10f)).transform.rotation = root.transform.rotation;
+    }
+
+    private void AddBellTower(Vector3 pos, Color stone, Color lightColor)
+    {
+        AddCube("Colegiata Tower", pos + new Vector3(0f, 2.2f, 0f), new Vector3(1.6f, 4.4f, 1.0f), stone);
+        AddCube("Colegiata Roof", pos + new Vector3(0f, 4.6f, 0f), new Vector3(1.9f, 0.35f, 1.2f), Color.Lerp(stone, Color.black, 0.35f));
+        AddCube("Cross Vertical", pos + new Vector3(0f, 5.35f, -0.05f), new Vector3(0.08f, 0.7f, 0.08f), lightColor);
+        AddCube("Cross Horizontal", pos + new Vector3(0f, 5.45f, -0.05f), new Vector3(0.55f, 0.07f, 0.07f), lightColor);
+    }
+
+    private void AddCandles(Vector3 pos, Color lightColor)
+    {
+        for (int i = 0; i < 5; i++)
+        {
+            var flame = AddCylinder("Candle Flame", pos + new Vector3(i * 0.16f, 0.35f, Random.Range(-0.12f, 0.12f)), new Vector3(0.035f, 0.08f, 0.035f), lightColor);
+            var mat = flame.GetComponent<Renderer>().material;
+            flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = i * 0.8f, amount = 0.45f });
+        }
+    }
+
+    private void AddArch(Vector3 pos, Color stone)
+    {
+        AddCube("Clock Gate Left", pos + new Vector3(-1.15f, 1.45f, 0f), new Vector3(0.55f, 2.9f, 0.8f), stone);
+        AddCube("Clock Gate Right", pos + new Vector3(1.15f, 1.45f, 0f), new Vector3(0.55f, 2.9f, 0.8f), stone);
+        AddCube("Clock Gate Top", pos + new Vector3(0f, 2.9f, 0f), new Vector3(2.85f, 0.55f, 0.8f), Color.Lerp(stone, Color.white, 0.06f));
+        AddCylinder("Clock Face", pos + new Vector3(0f, 3.25f, -0.43f), new Vector3(0.32f, 0.04f, 0.32f), new Color(0.85f, 0.78f, 0.58f));
+    }
+
+    private void AddHangingSign(Vector3 pos, Color lightColor)
+    {
+        AddCube("Sign Bracket", pos, new Vector3(0.75f, 0.05f, 0.05f), new Color(0.08f, 0.08f, 0.08f));
+        var sign = AddCube("Neon Shop Sign", pos + new Vector3(0f, -0.28f, 0f), new Vector3(0.72f, 0.25f, 0.05f), lightColor);
+        var mat = sign.GetComponent<Renderer>().material;
+        flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = pos.z, amount = 0.5f });
+    }
+
+    private void AddBridgeRail(int side)
+    {
+        AddCube("Bridge Rail", new Vector3(side * 2.95f, 0.65f, 8f), new Vector3(0.18f, 0.18f, 25f), new Color(0.12f, 0.14f, 0.14f));
+        for (float z = -2f; z < 20f; z += 2f)
+            AddCube("Bridge Post", new Vector3(side * 2.95f, 0.35f, z), new Vector3(0.22f, 0.7f, 0.22f), new Color(0.10f, 0.12f, 0.12f));
+    }
+
+    private void AddRiverGlow(Color lightColor)
+    {
+        var water = AddCube("Duero Reflection", new Vector3(0f, -0.12f, 16f), new Vector3(5.5f, 0.035f, 12f), Color.Lerp(lightColor, new Color(0f, 0.05f, 0.09f), 0.55f));
+        var mat = water.GetComponent<Renderer>().material;
+        flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = 3.4f, amount = 0.18f });
+    }
+
+    private void AddAbandonedCar(Vector3 pos, Color lightColor)
+    {
+        AddCube("Abandoned Car Body", pos, new Vector3(1.35f, 0.38f, 0.72f), new Color(0.13f, 0.08f, 0.07f));
+        AddCube("Abandoned Car Cabin", pos + new Vector3(0.05f, 0.35f, 0f), new Vector3(0.75f, 0.35f, 0.58f), new Color(0.05f, 0.055f, 0.06f));
+        var hazard = AddCube("Broken Hazard Light", pos + new Vector3(-0.62f, 0.18f, -0.37f), new Vector3(0.12f, 0.08f, 0.04f), lightColor);
+        var mat = hazard.GetComponent<Renderer>().material;
+        flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = 4.5f, amount = 0.65f });
+    }
+
+    private void AddMarketStall(Vector3 pos, Color cloth, Color lightColor)
+    {
+        AddCube("Market Counter", pos, new Vector3(1.15f, 0.38f, 0.55f), Color.Lerp(cloth, Color.black, 0.2f));
+        AddCube("Market Awning", pos + new Vector3(0f, 0.62f, 0f), new Vector3(1.35f, 0.12f, 0.75f), cloth);
+        var lamp = AddCylinder("Market Lamp", pos + new Vector3(0f, 0.88f, -0.25f), new Vector3(0.07f, 0.08f, 0.07f), lightColor);
+        var mat = lamp.GetComponent<Renderer>().material;
+        flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = pos.x + pos.z, amount = 0.35f });
+    }
+
+    private void AddBullringGate(Vector3 pos, Color wall, Color lightColor)
+    {
+        AddCylinder("Bullring Left Tower", pos + new Vector3(-1.45f, 1.35f, 0f), new Vector3(0.42f, 1.35f, 0.42f), wall);
+        AddCylinder("Bullring Right Tower", pos + new Vector3(1.45f, 1.35f, 0f), new Vector3(0.42f, 1.35f, 0.42f), wall);
+        AddCube("Bullring Gate Top", pos + new Vector3(0f, 2.65f, 0f), new Vector3(3.3f, 0.5f, 0.8f), Color.Lerp(wall, Color.white, 0.05f));
+        var sign = AddCube("Arena Warning Sign", pos + new Vector3(0f, 3.05f, -0.43f), new Vector3(1.45f, 0.25f, 0.05f), lightColor);
+        var mat = sign.GetComponent<Renderer>().material;
+        flickerLights.Add(new FlickerLight { material = mat, baseColor = mat.color, phase = 6.1f, amount = 0.28f });
+    }
+
+    private void RebuildScenario(int index)
+    {
+        ClearScenarioObjects();
+        var wp = ToroWaypoints[index];
+
+        RenderSettings.fogColor = wp.fogColor;
+        RenderSettings.fogDensity = Mathf.Lerp(0.014f, 0.026f, Mathf.Clamp01(wave / 10f)) + wp.theme * 0.0008f;
+        RenderSettings.ambientSkyColor = wp.skyColor;
+        RenderSettings.ambientEquatorColor = Color.Lerp(wp.skyColor, wp.fogColor, 0.45f);
+        RenderSettings.ambientGroundColor = Color.Lerp(wp.roadColor, Color.black, 0.45f);
+        cam.backgroundColor = Color.Lerp(wp.fogColor, Color.black, 0.25f);
+
+        if (moonLight != null)
+        {
+            moonLight.color = Color.Lerp(wp.lampColor, new Color(0.45f, 0.55f, 0.75f), 0.55f);
+            moonLight.intensity = 0.42f + Mathf.Min(wave * 0.015f, 0.18f);
+        }
+        if (streetLight != null)
+        {
+            streetLight.color = wp.lampColor;
+            streetLight.intensity = 1.1f + Mathf.Min(wave * 0.035f, 0.45f);
+        }
+
+        BuildRoad(wp);
+        BuildBuildings(wp);
+        BuildStreetProps(wp);
+        LoadWaypointImage(index);
+    }
+
+    private void ClearScenarioObjects()
+    {
+        foreach (var obj in buildings) if (obj != null) Destroy(obj);
+        foreach (var obj in streetProps) if (obj != null) Destroy(obj);
+        buildings.Clear();
+        streetProps.Clear();
+        roadDashTransforms.Clear();
+        flickerLights.Clear();
     }
 
     private void ResetGame()
@@ -342,8 +586,12 @@ public class ZombiesToroGame : MonoBehaviour
         nextGroanTime = Time.time + 2f;
         nextFootstepTime = 0f;
         playerMoveAmount = 0f;
+        autoAdvanceTimer = 0f;
+        pendingWaypoint = -1;
+        transitionFlash = 0.85f;
+        scenarioBannerTimer = 3f;
         ClearZombies();
-        LoadWaypointImage(0);
+        RebuildScenario(0);
         StartNextWave();
     }
 
@@ -391,9 +639,14 @@ public class ZombiesToroGame : MonoBehaviour
 
     private void SpawnZombie()
     {
-        float side = Random.value > 0.5f ? -1f : 1f;
-        float spawnX = side * Random.Range(4.5f, 7f);
-        float spawnZ = Random.Range(3f, 8f);
+        float spawnX = Random.Range(-2.15f, 2.15f);
+        float spawnZ = Random.Range(9f, 18f);
+        if (Random.value > 0.72f)
+        {
+            float side = Random.value > 0.5f ? -1f : 1f;
+            spawnX = side * Random.Range(2.2f, 2.8f);
+            spawnZ = Random.Range(6f, 12f);
+        }
 
         Color32 skinColor = skinTones[Random.Range(0, skinTones.Length)];
         Color32 shirtColor = shirtColors[Random.Range(0, shirtColors.Length)];
@@ -599,6 +852,8 @@ public class ZombiesToroGame : MonoBehaviour
     private void Update()
     {
         ReadMobileInput();
+        transitionFlash = Mathf.Max(0f, transitionFlash - Time.deltaTime * 1.8f);
+        scenarioBannerTimer = Mathf.Max(0f, scenarioBannerTimer - Time.deltaTime);
 
         if (gameOver)
         {
@@ -615,6 +870,8 @@ public class ZombiesToroGame : MonoBehaviour
         if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight) UpdateCameraLayout();
 
         HandlePlayerMovement();
+        UpdateScenarioAnimation();
+        HandleAutoAdvance();
 
         if (!waveComplete && zombiesSpawnedThisWave < zombiesPerWave + wave)
         {
@@ -632,8 +889,53 @@ public class ZombiesToroGame : MonoBehaviour
 
         if (!waveComplete && zombiesSpawnedThisWave >= zombiesPerWave + wave && zombiesAlive <= 0)
         {
-            waveComplete = true;
-            PlaySound(waveClearSound, 0.55f);
+            CompleteWave();
+        }
+    }
+
+    private void CompleteWave()
+    {
+        if (waveComplete) return;
+        waveComplete = true;
+        pendingWaypoint = ChooseNextWaypoint();
+        autoAdvanceTimer = 2.6f;
+        scenarioBannerTimer = 3.2f;
+        PlaySound(waveClearSound, 0.55f);
+    }
+
+    private int ChooseNextWaypoint()
+    {
+        var connections = ToroWaypoints[currentWaypoint].connections;
+        if (connections == null || connections.Length == 0) return (currentWaypoint + 1) % ToroWaypoints.Length;
+        return connections[Mathf.Abs(wave + currentWaypoint + score / Mathf.Max(1, scorePerKill)) % connections.Length];
+    }
+
+    private void HandleAutoAdvance()
+    {
+        if (!waveComplete || gameOver || showIntro || pendingWaypoint < 0) return;
+        autoAdvanceTimer -= Time.deltaTime;
+        if (autoAdvanceTimer <= 0f) MoveToWaypoint(pendingWaypoint);
+    }
+
+    private void UpdateScenarioAnimation()
+    {
+        float roadSpeed = 0.55f + Mathf.Min(wave * 0.035f, 0.55f);
+        foreach (var dash in roadDashTransforms)
+        {
+            if (dash == null) continue;
+            Vector3 p = dash.position;
+            p.z -= roadSpeed * Time.deltaTime;
+            if (p.z < -3f) p.z += 25f;
+            dash.position = p;
+        }
+
+        float time = Time.time;
+        foreach (var f in flickerLights)
+        {
+            if (f.material == null) continue;
+            float pulse = 1f + Mathf.Sin(time * (3.2f + f.amount * 5f) + f.phase) * f.amount;
+            float glitch = Mathf.PerlinNoise(time * 1.7f, f.phase) > 0.86f ? 0.45f : 1f;
+            f.material.color = f.baseColor * Mathf.Clamp(pulse * glitch, 0.35f, 1.45f);
         }
     }
 
@@ -696,34 +998,39 @@ public class ZombiesToroGame : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Space)) aim = new Vector3(Screen.width * 0.5f, Screen.height * 0.5f);
         Ray ray = cam.ScreenPointToRay(aim);
         PlaySound(shootSound, 0.4f);
-        if (!Physics.Raycast(ray, out RaycastHit hit, 50f)) return;
+        RaycastHit[] hits = Physics.RaycastAll(ray, 50f);
+        if (hits.Length == 0) return;
+        System.Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
 
-        foreach (var z in zombies)
+        foreach (var hit in hits)
         {
-            if (z.transform == null) continue;
-            Transform t = hit.transform;
-            while (t != null)
+            foreach (var z in zombies)
             {
-                if (t == z.transform)
+                if (z.transform == null) continue;
+                Transform t = hit.transform;
+                while (t != null)
                 {
-                    z.health -= 1f;
-                    if (z.health <= 0f)
+                    if (t == z.transform)
                     {
-                        score += scorePerKill + wave * 10;
-                        PlaySound(deathSound, 0.65f);
-                        SpawnBloodEffect(z.transform.position + Vector3.up * 1.0f);
-                        Destroy(z.transform.gameObject);
-                        zombies.Remove(z);
-                        zombiesAlive--;
+                        z.health -= 1f;
+                        if (z.health <= 0f)
+                        {
+                            score += scorePerKill + wave * 10;
+                            PlaySound(deathSound, 0.65f);
+                            SpawnBloodEffect(z.transform.position + Vector3.up * 1.0f);
+                            Destroy(z.transform.gameObject);
+                            zombies.Remove(z);
+                            zombiesAlive--;
+                        }
+                        else
+                        {
+                            SpawnBloodEffect(hit.point);
+                            PlaySound(hitSound, 0.3f);
+                        }
+                        return;
                     }
-                    else
-                    {
-                        SpawnBloodEffect(hit.point);
-                        PlaySound(hitSound, 0.3f);
-                    }
-                    return;
+                    t = t.parent;
                 }
-                t = t.parent;
             }
         }
     }
@@ -830,19 +1137,24 @@ public class ZombiesToroGame : MonoBehaviour
         ClearZombies();
         currentWaypoint = index;
         waveComplete = true;
-        LoadWaypointImage(index);
+        pendingWaypoint = -1;
+        autoAdvanceTimer = 0f;
+        transitionFlash = 1f;
+        scenarioBannerTimer = 3.2f;
+        cam.transform.position = new Vector3(0f, 1.6f, -2f);
+        RebuildScenario(index);
         StartNextWave();
     }
 
     private void OnGUI()
     {
-        int hSize = Mathf.Clamp(Screen.width / 40, 16, 26);
+        int hSize = Mathf.Clamp(Screen.width / 55, 14, 22);
         if (hudStyle == null || hudStyleSize != hSize)
         {
             hudStyle = new GUIStyle(GUI.skin.label) { fontSize = hSize, normal = { textColor = new Color(0.3f, 0.9f, 0.3f) } };
             hudStyleSize = hSize;
         }
-        int tSize = Mathf.Clamp(Screen.width / 28, 22, 36);
+        int tSize = Mathf.Clamp(Screen.width / 42, 22, 30);
         if (titleStyle == null || titleStyleSize != tSize)
         {
             titleStyle = new GUIStyle(GUI.skin.label) { fontSize = tSize, normal = { textColor = new Color(0.1f, 0.8f, 0.6f) }, fontStyle = FontStyle.Bold };
@@ -871,7 +1183,7 @@ public class ZombiesToroGame : MonoBehaviour
             string controls = "CONTROLES:\n" +
                 "CLICK IZQUIERDO / TAP - Disparar\n" +
                 "WASD / FLECHAS - Moverse por la calle\n" +
-                "Botones \"IR A...\" - Cambiar de calle al completar oleada\n" +
+                "La ruta avanza sola al completar cada oleada\n" +
                 "R / ENTER - Reiniciar al morir";
             GUI.Label(new Rect(Screen.width * 0.1f, Screen.height * 0.58f, Screen.width * 0.8f, 200f), controls, ctrlStyle);
 
@@ -882,18 +1194,18 @@ public class ZombiesToroGame : MonoBehaviour
         }
 
         var wp = ToroWaypoints[currentWaypoint];
-        GUI.Label(new Rect(20f, 12f, Screen.width - 40f, 40f), "ZOMBIES EN TORO", titleStyle);
-        GUI.Label(new Rect(20f, 48f, Screen.width - 40f, 30f), $"PUNTUACION: {score}  VIDAS: {lives}  OLEADA: {wave}", hudStyle);
-        GUI.Label(new Rect(20f, 76f, Screen.width - 40f, 24f), $"\u00B0 {wp.name}", hudStyle);
+        GUI.Label(new Rect(20f, 10f, Screen.width - 40f, 34f), "ZOMBIES EN TORO", titleStyle);
+        GUI.Label(new Rect(20f, 42f, Screen.width - 40f, 26f), $"PUNTUACION: {score}  VIDAS: {lives}  OLEADA: {wave}", hudStyle);
+        GUI.Label(new Rect(20f, 66f, Screen.width - 40f, 24f), $"{wp.name.ToUpper()} - {wp.mood}", hudStyle);
 
-        GUI.Box(new Rect(20f, 104f, 202f, 20f), "");
-        GUI.Box(new Rect(21f, 105f, 200f * ((float)lives / maxLives), 18f), "");
-        GUI.Label(new Rect(25f, 103f, 200f, 20f), $"VIDAS: {lives}/{maxLives}", new GUIStyle(hudStyle) { fontSize = 12 });
+        GUI.Box(new Rect(20f, 94f, 176f, 18f), "");
+        GUI.Box(new Rect(21f, 95f, 174f * ((float)lives / maxLives), 16f), "");
+        GUI.Label(new Rect(25f, 92f, 170f, 20f), $"VIDAS: {lives}/{maxLives}", new GUIStyle(hudStyle) { fontSize = 12 });
 
         float cs = Mathf.Clamp(Screen.width * 0.025f, 14f, 28f);
         GUI.DrawTexture(new Rect(Screen.width * 0.5f - cs * 0.5f, Screen.height * 0.5f - cs * 0.5f, cs, cs), crosshairTex);
 
-        if (Application.isMobilePlatform || Input.touchSupported || Screen.width < 900)
+        if (Application.isMobilePlatform || Screen.width < 900)
         {
             float radius = Mathf.Clamp(Mathf.Min(Screen.width, Screen.height) * 0.12f, 56f, 92f);
             float centerX = Mathf.Max(76f, Screen.width * 0.12f);
@@ -914,24 +1226,29 @@ public class ZombiesToroGame : MonoBehaviour
             if (zombiesAlive <= 0 && zombiesSpawnedThisWave < zombiesPerWave + wave)
                 GUI.Label(new Rect(Screen.width * 0.5f - 100f, Screen.height * 0.3f, 200f, 30f), "PREPARATE...", new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = 22, normal = { textColor = Color.white } });
             else
-                GUI.Label(new Rect(20f, 128f, 300f, 24f), $"ZOMBIES VIVOS: {zombiesAlive}", hudStyle);
+                GUI.Label(new Rect(20f, 118f, 300f, 24f), $"ZOMBIES VIVOS: {zombiesAlive}", hudStyle);
         }
 
         if (waveComplete)
         {
             var readyStyle = new GUIStyle(GUI.skin.label) { fontSize = 22, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(0.2f, 1f, 0.4f) } };
             GUI.Label(new Rect(0f, Screen.height * 0.28f, Screen.width, 30f), "OLEADA COMPLETADA", readyStyle);
+            if (pendingWaypoint >= 0)
+            {
+                var next = ToroWaypoints[pendingWaypoint];
+                GUI.Label(new Rect(0f, Screen.height * 0.32f, Screen.width, 30f), $"AVANZANDO A {next.name.ToUpper()} EN {Mathf.CeilToInt(autoAdvanceTimer)}", new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = 18, normal = { textColor = Color.white } });
+            }
 
             float btnW = Mathf.Clamp(Screen.width * 0.24f, 140f, 240f);
             float btnH = Mathf.Clamp(Screen.height * 0.06f, 40f, 55f);
             int conn = wp.connections.Length;
             if (conn == 0)
-                GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, 30f), "No hay mas calles", hudStyle);
+                GUI.Label(new Rect(0f, Screen.height * 0.40f, Screen.width, 30f), "No hay mas calles", hudStyle);
             else for (int i = 0; i < conn; i++)
             {
                 var tw = ToroWaypoints[wp.connections[i]];
                 float x = Screen.width * 0.5f - btnW * 0.5f;
-                float y = Screen.height * 0.36f + i * (btnH + 8f);
+                float y = Screen.height * 0.40f + i * (btnH + 8f);
                 if (GUI.Button(new Rect(x, y, btnW, btnH), $"IR A  {tw.name}"))
                     MoveToWaypoint(wp.connections[i]);
             }
@@ -943,6 +1260,26 @@ public class ZombiesToroGame : MonoBehaviour
             GUI.Label(new Rect(0f, Screen.height * 0.22f, Screen.width, 100f), "GAME OVER", msgStyle);
             GUI.Label(new Rect(0f, Screen.height * 0.22f + 70f, Screen.width, 30f), $"Puntuacion final: {score}", new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = 20 });
             GUI.Label(new Rect(0f, Screen.height * 0.22f + 105f, Screen.width, 30f), "Pulsa R o ENTER para reiniciar", new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter });
+        }
+
+        if (scenarioBannerTimer > 0f && !gameOver)
+        {
+            float alpha = Mathf.Clamp01(scenarioBannerTimer / 0.7f);
+            var bannerStyle = new GUIStyle(titleStyle)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = Mathf.Clamp(Screen.width / 30, 22, 34),
+                normal = { textColor = new Color(0.8f, 1f, 0.9f, alpha) }
+            };
+            GUI.Label(new Rect(0f, Screen.height * 0.16f, Screen.width, 44f), wp.name.ToUpper(), bannerStyle);
+            GUI.Label(new Rect(0f, Screen.height * 0.16f + 38f, Screen.width, 26f), wp.mood.ToUpper(), new GUIStyle(hudStyle) { alignment = TextAnchor.MiddleCenter, fontSize = 16, normal = { textColor = new Color(1f, 1f, 1f, alpha * 0.8f) } });
+        }
+
+        if (transitionFlash > 0f)
+        {
+            GUI.color = new Color(0f, 0f, 0f, transitionFlash);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = Color.white;
         }
     }
 
