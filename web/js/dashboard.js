@@ -9,7 +9,7 @@ const GAMES = [
   { id: 'starfighter', name: 'STARFIGHTER 3D', icon: '🚀', color: '#00ffff', desc: 'Nave espacial con asteroides, escudo y jefe.' },
   { id: 'unity-starrunner', name: 'UNITY STAR RUNNER', icon: '🛰️', color: '#7f5cff', desc: 'Runner 3D con disparos, enemigos y dificultad progresiva.', type: 'unity', url: 'unity/starrunner/index.html?v=20260711-1' },
   { id: 'unity-neonmaze', name: 'UNITY NEON MAZE', icon: '🟡', color: '#ffd84d', desc: 'Comecocos 3D moderno con niveles y controles tactiles.', type: 'unity', url: 'unity/neonmaze/index.html?v=20260711-1' },
-  { id: 'unity-zombiestoro', name: 'ZOMBIES TORO', icon: '🧟', color: '#66ff33', desc: 'Shooter 3D con movimiento libre, oleadas y controles tactiles.', type: 'unity', url: 'unity/zombiestoro/index.html?v=20260711-3' },
+  { id: 'unity-zombiestoro', name: 'ZOMBIES TORO', icon: '🧟', color: '#66ff33', desc: 'Shooter 3D con movimiento libre, oleadas, audio tematico y controles tactiles.', type: 'unity', url: 'unity/zombiestoro/index.html?v=20260711-4' },
 ];
 
 let currentGame = null;

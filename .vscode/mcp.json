@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "codebase-memo": {
+      "type": "stdio",
+      "command": "/home/javapli/.local/bin/codebase-memory-mcp",
+      "args": []
+    }
+  }
+}

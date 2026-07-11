@@ -56,7 +56,14 @@ public class ZombiesToroGame : MonoBehaviour
     private AudioClip shootSound;
     private AudioClip hitSound;
     private AudioClip deathSound;
+    private AudioClip zombieGroanSound;
+    private AudioClip footstepSound;
+    private AudioClip playerHurtSound;
+    private AudioClip waveClearSound;
     private AudioClip musicLoop;
+    private float nextGroanTime;
+    private float nextFootstepTime;
+    private float playerMoveAmount;
 
     private GUIStyle hudStyle;
     private int hudStyleSize = -1;
@@ -150,13 +157,18 @@ public class ZombiesToroGame : MonoBehaviour
 
         audioSource = gameObject.AddComponent<AudioSource>();
         audioSource.playOnAwake = false;
-        shootSound = CreateTone("Shoot", 880f, 0.08f, true);
-        hitSound = CreateTone("Hit", 220f, 0.2f, true);
-        deathSound = CreateTone("Death", 120f, 0.5f, true);
+        audioSource.spatialBlend = 0f;
+        shootSound = CreateGunshot();
+        hitSound = CreateHitImpact();
+        deathSound = CreateZombieDeath();
+        zombieGroanSound = CreateZombieGroan();
+        footstepSound = CreateFootstep();
+        playerHurtSound = CreatePlayerHurt();
+        waveClearSound = CreateWaveClear();
         musicSource = gameObject.AddComponent<AudioSource>();
         musicSource.playOnAwake = false;
         musicSource.loop = true;
-        musicSource.volume = 0.35f;
+        musicSource.volume = 0.32f;
         musicSource.spatialBlend = 0f;
         BuildMusic();
         musicSource.clip = musicLoop;
@@ -327,6 +339,9 @@ public class ZombiesToroGame : MonoBehaviour
         waveComplete = true;
         zombiesSpawnedThisWave = 0;
         showIntro = true;
+        nextGroanTime = Time.time + 2f;
+        nextFootstepTime = 0f;
+        playerMoveAmount = 0f;
         ClearZombies();
         LoadWaypointImage(0);
         StartNextWave();
@@ -613,9 +628,13 @@ public class ZombiesToroGame : MonoBehaviour
 
         MoveZombies();
         HandleShooting();
+        UpdateAtmosphericSfx();
 
         if (!waveComplete && zombiesSpawnedThisWave >= zombiesPerWave + wave && zombiesAlive <= 0)
+        {
             waveComplete = true;
+            PlaySound(waveClearSound, 0.55f);
+        }
     }
 
     private void MoveZombies()
@@ -658,7 +677,7 @@ public class ZombiesToroGame : MonoBehaviour
             if (Vector2.Distance(new Vector2(pos.x, pos.z), new Vector2(player.x, player.z)) <= 1.05f)
             {
                 lives--;
-                PlaySound(deathSound, 0.8f);
+                PlaySound(playerHurtSound, 0.75f);
                 Destroy(z.transform.gameObject);
                 zombies.RemoveAt(i);
                 zombiesAlive--;
@@ -691,7 +710,7 @@ public class ZombiesToroGame : MonoBehaviour
                     if (z.health <= 0f)
                     {
                         score += scorePerKill + wave * 10;
-                        PlaySound(hitSound, 0.6f);
+                        PlaySound(deathSound, 0.65f);
                         SpawnBloodEffect(z.transform.position + Vector3.up * 1.0f);
                         Destroy(z.transform.gameObject);
                         zombies.Remove(z);
@@ -734,12 +753,31 @@ public class ZombiesToroGame : MonoBehaviour
         float horizontal = Input.GetAxisRaw("Horizontal") + mobileMove.x;
         float vertical = Input.GetAxisRaw("Vertical") + mobileMove.y;
         Vector3 input = Vector3.ClampMagnitude(new Vector3(horizontal, 0f, vertical), 1f);
+        playerMoveAmount = input.magnitude;
         Vector3 position = cam.transform.position + input * playerSpeed * Time.deltaTime;
         position.x = Mathf.Clamp(position.x, -2.55f, 2.55f);
         position.z = Mathf.Clamp(position.z, -2.2f, 2.2f);
         position.y = 1.6f + Mathf.Sin(Time.time * 10f) * 0.015f * input.magnitude;
         cam.transform.position = position;
         cam.transform.rotation = Quaternion.Euler(1.5f, 0f, 0f);
+
+        if (playerMoveAmount > 0.15f && Time.time >= nextFootstepTime)
+        {
+            PlaySound(footstepSound, 0.24f);
+            nextFootstepTime = Time.time + Mathf.Lerp(0.58f, 0.34f, playerMoveAmount);
+        }
+    }
+
+    private void UpdateAtmosphericSfx()
+    {
+        if (musicSource != null)
+            musicSource.pitch = Mathf.Lerp(musicSource.pitch, 1f + Mathf.Min(wave * 0.015f, 0.16f), Time.deltaTime * 0.7f);
+
+        if (zombiesAlive <= 0 || Time.time < nextGroanTime) return;
+
+        float volume = Mathf.Clamp(0.18f + zombiesAlive * 0.035f, 0.18f, 0.42f);
+        PlaySound(zombieGroanSound, volume);
+        nextGroanTime = Time.time + Random.Range(1.9f, Mathf.Max(2.4f, 4.8f - wave * 0.12f));
     }
 
     private void UpdateCameraLayout()
@@ -831,10 +869,10 @@ public class ZombiesToroGame : MonoBehaviour
 
             var ctrlStyle = new GUIStyle(hudStyle) { fontSize = Mathf.Clamp(Screen.width / 35, 16, 22), alignment = TextAnchor.UpperLeft, wordWrap = true };
             string controls = "CONTROLES:\n" +
-                "🖱️ CLICK IZQUIERDO / TAP → Disparar\n" +
-                "WASD / FLECHAS → Moverse por la calle\n" +
-                "🔘 Botones \"IR A...\" → Cambiar de calle al completar oleada\n" +
-                "R / ENTER → Reiniciar al morir";
+                "CLICK IZQUIERDO / TAP - Disparar\n" +
+                "WASD / FLECHAS - Moverse por la calle\n" +
+                "Botones \"IR A...\" - Cambiar de calle al completar oleada\n" +
+                "R / ENTER - Reiniciar al morir";
             GUI.Label(new Rect(Screen.width * 0.1f, Screen.height * 0.58f, Screen.width * 0.8f, 200f), controls, ctrlStyle);
 
             var hintStyle = new GUIStyle(hudStyle) { fontSize = 14, alignment = TextAnchor.MiddleCenter, normal = { textColor = new Color(0.6f, 0.6f, 0.6f) } };
@@ -910,56 +948,55 @@ public class ZombiesToroGame : MonoBehaviour
 
     private void BuildMusic()
     {
-        musicSource = gameObject.AddComponent<AudioSource>();
-        musicSource.playOnAwake = false;
-        musicSource.loop = true;
-        musicSource.volume = 0.25f;
-
         const int sampleRate = 22050;
-        float duration = 18f;
+        float duration = 32f;
         int totalSamples = Mathf.CeilToInt(sampleRate * duration);
         var samples = new float[totalSamples];
+        var rng = new System.Random(1337);
 
-        float[] bassNotes = { 65.41f, 73.42f, 82.41f, 98.0f, 110.0f, 130.81f };
-        float[] melodyNotes = { 220f, 261.63f, 311.13f, 349.23f, 392f, 440f, 523.25f, 622.25f };
-        int[] melodyPattern = { 0, 1, 3, 1, 4, 3, 1, 0, 2, 3, 5, 3, 1, 0, 1, 3, 6, 5, 3, 1, 0, 1, 3, 1, 4, 3, 1, 0, 2, 3, 5, 7, 6, 5, 3, 1 };
+        float[] bassNotes = { 55f, 51.91f, 46.25f, 61.74f, 55f, 41.2f, 46.25f, 51.91f };
+        float[] leadNotes = { 220f, 246.94f, 261.63f, 293.66f, 329.63f, 349.23f, 392f };
+        int[] leadPattern = { 0, 2, 1, 0, 4, 3, 1, 0, 5, 4, 2, 1, 6, 4, 3, 1 };
 
-        int beatLength = sampleRate / 3;
-        int melodyBeat = sampleRate / 6;
+        int beatLength = sampleRate / 2;
+        int leadBeat = sampleRate / 4;
 
         for (int i = 0; i < totalSamples; i++)
         {
             float t = (float)i / sampleRate;
+            float noise = ((float)rng.NextDouble() * 2f - 1f);
 
-            int bassIdx = (i / (beatLength * 6)) % bassNotes.Length;
+            int bassIdx = (i / (beatLength * 4)) % bassNotes.Length;
             float bassFreq = bassNotes[bassIdx];
-            float bass = Mathf.Sin(2f * Mathf.PI * bassFreq * t) * 0.12f;
-            bass += Mathf.Sin(2f * Mathf.PI * bassFreq * 0.5f * t) * 0.08f;
+            float bassPulse = 1f - (float)(i % beatLength) / beatLength;
+            bassPulse = Mathf.Clamp01(bassPulse * 1.8f);
+            float bass = Mathf.Sin(2f * Mathf.PI * bassFreq * t) * 0.16f * bassPulse;
+            bass += Mathf.Sign(Mathf.Sin(2f * Mathf.PI * bassFreq * 0.5f * t)) * 0.045f;
 
-            int melIdx = (i / melodyBeat) % melodyPattern.Length;
-            float melFreq = melodyNotes[melodyPattern[melIdx]];
-            float melEnv = Mathf.Clamp01(1f - ((float)(i % melodyBeat) / melodyBeat) * 2f);
-            float melody = Mathf.Sin(2f * Mathf.PI * melFreq * t) * 0.06f * melEnv;
-            melody += Mathf.Sin(2f * Mathf.PI * melFreq * 2f * t) * 0.03f * melEnv;
+            int leadIdx = (i / leadBeat) % leadPattern.Length;
+            float leadFreq = leadNotes[leadPattern[leadIdx]];
+            float leadEnv = Mathf.Clamp01(1f - ((float)(i % leadBeat) / leadBeat) * 2.8f);
+            float lead = Mathf.Sin(2f * Mathf.PI * leadFreq * t) * 0.055f * leadEnv;
+            lead += Mathf.Sin(2f * Mathf.PI * (leadFreq * 1.01f) * t) * 0.025f * leadEnv;
 
-            float noise = (Random.value * 2f - 1f) * 0.015f;
+            float drone = Mathf.Sin(2f * Mathf.PI * 27.5f * t) * 0.055f;
+            drone += Mathf.Sin(2f * Mathf.PI * 32.7f * t) * 0.035f;
+            drone += Mathf.Sin(2f * Mathf.PI * 65.4f * t + Mathf.Sin(t * 0.45f) * 2.5f) * 0.025f;
 
-            float drone = Mathf.Sin(2f * Mathf.PI * 55f * t) * 0.04f;
-            drone += Mathf.Sin(2f * Mathf.PI * 55.5f * t) * 0.03f;
+            float kickEnv = Mathf.Clamp01(1f - (float)(i % (beatLength * 2)) / (beatLength * 0.22f));
+            float kick = Mathf.Sin(2f * Mathf.PI * 58f * t) * 0.16f * kickEnv;
 
-            float percEnvelope = Mathf.Clamp01(1f - (i % (beatLength * 8)) / (float)(beatLength * 8) * 8f);
-            float perc = (Random.value * 2f - 1f) * 0.04f * percEnvelope;
+            float hatEnv = Mathf.Clamp01(1f - (float)(i % (sampleRate / 8)) / (sampleRate / 50f));
+            float scratch = noise * 0.018f * hatEnv;
 
-            float sample = bass + melody + noise + drone + perc;
-            if (sample > 1f) sample = 1f;
-            if (sample < -1f) sample = -1f;
-            samples[i] = sample;
+            float thunderEnv = Mathf.Clamp01(Mathf.Sin(t * 0.12f) * 0.5f + 0.5f);
+            float thunder = noise * noise * Mathf.Sign(noise) * 0.018f * thunderEnv;
+
+            samples[i] = Mathf.Clamp((bass + lead + drone + kick + scratch + thunder) * 0.72f, -1f, 1f);
         }
 
-        musicLoop = AudioClip.Create("ZombieMusic", totalSamples, 1, sampleRate, false);
+        musicLoop = AudioClip.Create("ZombiesToroDarkTheme", totalSamples, 1, sampleRate, false);
         musicLoop.SetData(samples, 0);
-        musicSource.clip = musicLoop;
-        musicSource.Play();
     }
 
     private void PlaySound(AudioClip clip, float volume)
@@ -967,21 +1004,106 @@ public class ZombiesToroGame : MonoBehaviour
         if (audioSource != null && clip != null) audioSource.PlayOneShot(clip, volume);
     }
 
-    private AudioClip CreateTone(string clipName, float frequency, float duration, bool square)
+    private delegate float SampleBuilder(float t, float p, System.Random rng);
+
+    private AudioClip CreateProceduralClip(string clipName, float duration, int seed, SampleBuilder builder)
     {
         const int sampleRate = 22050;
         int sampleCount = Mathf.CeilToInt(sampleRate * duration);
         var samples = new float[sampleCount];
+        var rng = new System.Random(seed);
         for (int i = 0; i < sampleCount; i++)
         {
             float t = (float)i / sampleRate;
-            float wave = Mathf.Sin(2f * Mathf.PI * frequency * t);
-            if (square) wave = wave >= 0f ? 0.75f : -0.75f;
-            float envelope = 1f - (float)i / sampleCount;
-            samples[i] = wave * envelope * 0.35f;
+            float p = (float)i / Mathf.Max(1, sampleCount - 1);
+            samples[i] = Mathf.Clamp(builder(t, p, rng), -1f, 1f);
         }
         var clip = AudioClip.Create(clipName, sampleCount, 1, sampleRate, false);
         clip.SetData(samples, 0);
         return clip;
+    }
+
+    private AudioClip CreateGunshot()
+    {
+        return CreateProceduralClip("ShotgunBlast", 0.34f, 41, (t, p, rng) =>
+        {
+            float noise = ((float)rng.NextDouble() * 2f - 1f);
+            float crack = noise * Mathf.Exp(-p * 18f) * 0.88f;
+            float thump = Mathf.Sin(2f * Mathf.PI * 78f * t) * Mathf.Exp(-p * 7f) * 0.52f;
+            float ring = Mathf.Sin(2f * Mathf.PI * (420f - 180f * p) * t) * Mathf.Exp(-p * 12f) * 0.18f;
+            return crack + thump + ring;
+        });
+    }
+
+    private AudioClip CreateHitImpact()
+    {
+        return CreateProceduralClip("WetHit", 0.24f, 82, (t, p, rng) =>
+        {
+            float noise = ((float)rng.NextDouble() * 2f - 1f);
+            float crunch = noise * Mathf.Exp(-p * 10f) * 0.45f;
+            float body = Mathf.Sin(2f * Mathf.PI * (135f - 50f * p) * t) * Mathf.Exp(-p * 6f) * 0.32f;
+            return crunch + body;
+        });
+    }
+
+    private AudioClip CreateZombieDeath()
+    {
+        return CreateProceduralClip("ZombieCollapse", 0.85f, 123, (t, p, rng) =>
+        {
+            float noise = ((float)rng.NextDouble() * 2f - 1f) * 0.045f;
+            float freq = 130f - 75f * p + Mathf.Sin(t * 18f) * 8f;
+            float groan = Mathf.Sin(2f * Mathf.PI * freq * t) * (1f - p) * 0.46f;
+            float grit = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * (freq * 0.5f) * t)) * (1f - p) * 0.11f;
+            return groan + grit + noise;
+        });
+    }
+
+    private AudioClip CreateZombieGroan()
+    {
+        return CreateProceduralClip("ZombieGroan", 1.35f, 311, (t, p, rng) =>
+        {
+            float noise = ((float)rng.NextDouble() * 2f - 1f) * 0.035f;
+            float env = Mathf.Sin(Mathf.PI * p);
+            float vowel = Mathf.Sin(2f * Mathf.PI * (72f + Mathf.Sin(t * 5f) * 14f) * t);
+            vowel += Mathf.Sin(2f * Mathf.PI * (96f + Mathf.Sin(t * 3.7f) * 12f) * t) * 0.55f;
+            float rasp = Mathf.Sign(Mathf.Sin(2f * Mathf.PI * 28f * t)) * 0.18f;
+            return (vowel * 0.36f + rasp + noise) * env;
+        });
+    }
+
+    private AudioClip CreateFootstep()
+    {
+        return CreateProceduralClip("BootStep", 0.18f, 512, (t, p, rng) =>
+        {
+            float noise = ((float)rng.NextDouble() * 2f - 1f);
+            float thud = Mathf.Sin(2f * Mathf.PI * 62f * t) * Mathf.Exp(-p * 12f) * 0.34f;
+            float grit = noise * Mathf.Exp(-p * 18f) * 0.18f;
+            return thud + grit;
+        });
+    }
+
+    private AudioClip CreatePlayerHurt()
+    {
+        return CreateProceduralClip("PlayerHurt", 0.46f, 905, (t, p, rng) =>
+        {
+            float noise = ((float)rng.NextDouble() * 2f - 1f);
+            float hit = noise * Mathf.Exp(-p * 14f) * 0.38f;
+            float breath = Mathf.Sin(2f * Mathf.PI * (190f - 80f * p) * t) * Mathf.Sin(Mathf.PI * p) * 0.28f;
+            float bass = Mathf.Sin(2f * Mathf.PI * 44f * t) * Mathf.Exp(-p * 5f) * 0.24f;
+            return hit + breath + bass;
+        });
+    }
+
+    private AudioClip CreateWaveClear()
+    {
+        return CreateProceduralClip("WaveClearStinger", 1.1f, 144, (t, p, rng) =>
+        {
+            float env = Mathf.Sin(Mathf.PI * p);
+            float low = Mathf.Sin(2f * Mathf.PI * 110f * t) * 0.26f;
+            float fifth = Mathf.Sin(2f * Mathf.PI * 164.8f * t) * 0.18f;
+            float octave = Mathf.Sin(2f * Mathf.PI * 220f * t) * 0.12f;
+            float sweep = Mathf.Sin(2f * Mathf.PI * (300f + 160f * p) * t) * 0.08f;
+            return (low + fifth + octave + sweep) * env;
+        });
     }
 }
