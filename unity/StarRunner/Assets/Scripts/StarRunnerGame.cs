@@ -15,8 +15,12 @@ public class StarRunnerGame : MonoBehaviour
     private readonly List<Transform> pickups = new List<Transform>();
     private readonly List<Transform> trackSegments = new List<Transform>();
     private readonly List<Transform> stars = new List<Transform>();
+    private readonly List<Transform> playerShots = new List<Transform>();
+    private readonly List<Transform> enemyShots = new List<Transform>();
+    private readonly Dictionary<Transform, int> enemyHealth = new Dictionary<Transform, int>();
     private Transform player;
     private Camera mainCamera;
+    private Vector3 cameraBasePosition;
     private string hudText;
     private float spawnTimer;
     private float distance;
@@ -26,6 +30,13 @@ public class StarRunnerGame : MonoBehaviour
     private int targetLane;
     private bool gameOver;
     private float screenShake;
+    private float fireCooldown;
+    private float enemyFireTimer;
+    private AudioSource audioSource;
+    private AudioClip fireSound;
+    private AudioClip explosionSound;
+    private AudioClip damageSound;
+    private AudioClip pickupSound;
 
     private GUIStyle hudStyle;
     private int hudStyleFontSize = -1;
@@ -33,6 +44,8 @@ public class StarRunnerGame : MonoBehaviour
     private Material hazardMaterial;
     private Material pickupMaterial;
     private Material starMaterial;
+    private Material playerShotMaterial;
+    private Material enemyShotMaterial;
 
     private readonly Queue<GameObject> spherePool = new Queue<GameObject>();
     private readonly Queue<GameObject> cubePool = new Queue<GameObject>();
@@ -40,6 +53,7 @@ public class StarRunnerGame : MonoBehaviour
     private void Start()
     {
         BuildScene();
+        BuildAudio();
         ResetGame();
     }
 
@@ -55,16 +69,19 @@ public class StarRunnerGame : MonoBehaviour
         MovePlayer();
         AdvanceWorld();
         SpawnObjects();
+        MoveProjectiles();
+        EnemyFire();
         UpdateHud();
 
+        UpdateCameraLayout();
         if (screenShake > 0f)
         {
             screenShake -= Time.deltaTime;
             float intensity = screenShake * 0.06f;
-            mainCamera.transform.localPosition = new Vector3(
+            mainCamera.transform.position = cameraBasePosition + new Vector3(
                 Random.Range(-intensity, intensity),
                 Random.Range(-intensity, intensity),
-                mainCamera.transform.localPosition.z
+                0f
             );
         }
     }
@@ -79,9 +96,7 @@ public class StarRunnerGame : MonoBehaviour
             cameraObject.tag = "MainCamera";
         }
 
-        mainCamera.transform.position = new Vector3(0f, 6.8f, -10.5f);
-        mainCamera.transform.LookAt(new Vector3(0f, 0.35f, 14f));
-        mainCamera.fieldOfView = 62f;
+        UpdateCameraLayout();
         mainCamera.nearClipPlane = 0.1f;
         mainCamera.clearFlags = CameraClearFlags.SolidColor;
         mainCamera.backgroundColor = new Color(0.02f, 0.01f, 0.08f);
@@ -99,6 +114,8 @@ public class StarRunnerGame : MonoBehaviour
         hazardMaterial = MakeMat(new Color(1f, 0.18f, 0.34f));
         pickupMaterial = MakeMat(new Color(0f, 1f, 0.9f));
         starMaterial = MakeMat(Color.white);
+        playerShotMaterial = MakeMat(new Color(1f, 0.9f, 0.18f));
+        enemyShotMaterial = MakeMat(new Color(1f, 0.12f, 0.65f));
 
         BuildTrack();
         BuildShip();
@@ -196,6 +213,11 @@ public class StarRunnerGame : MonoBehaviour
         foreach (var p in pickups) if (p != null) ReturnToPool(spherePool, p.gameObject);
         hazards.Clear();
         pickups.Clear();
+        foreach (var shot in playerShots) if (shot != null) Destroy(shot.gameObject);
+        foreach (var shot in enemyShots) if (shot != null) Destroy(shot.gameObject);
+        playerShots.Clear();
+        enemyShots.Clear();
+        enemyHealth.Clear();
         player.position = new Vector3(0f, 0.4f, 0f);
         targetLane = 0;
         score = 0;
@@ -206,6 +228,8 @@ public class StarRunnerGame : MonoBehaviour
         forwardSpeed = 16f;
         gameOver = false;
         screenShake = 0f;
+        fireCooldown = 0f;
+        enemyFireTimer = 2.4f;
     }
 
     private Queue<GameObject> GetPoolForObject(GameObject obj)
@@ -222,17 +246,7 @@ public class StarRunnerGame : MonoBehaviour
     {
         if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A)) targetLane = Mathf.Max(-1, targetLane - 1);
         if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D)) targetLane = Mathf.Min(1, targetLane + 1);
-
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
-            if (touch.phase == TouchPhase.Began)
-            {
-                float halfScreen = Screen.width * 0.5f;
-                if (touch.position.x < halfScreen) targetLane = Mathf.Max(-1, targetLane - 1);
-                else targetLane = Mathf.Min(1, targetLane + 1);
-            }
-        }
+        if (Input.GetKey(KeyCode.Space) || Input.GetKey(KeyCode.X) || Input.GetKey(KeyCode.UpArrow)) Fire();
     }
 
     private void MovePlayer()
@@ -246,6 +260,7 @@ public class StarRunnerGame : MonoBehaviour
 
     private void AdvanceWorld()
     {
+        fireCooldown = Mathf.Max(0f, fireCooldown - Time.deltaTime);
         distance += forwardSpeed * Time.deltaTime;
         level = 1 + Mathf.FloorToInt(distance / 220f);
         forwardSpeed = Mathf.Min(30f, 16f + level * 1.2f);
@@ -293,13 +308,16 @@ public class StarRunnerGame : MonoBehaviour
                 {
                     shield = Mathf.Min(5, shield + 1);
                     score += 250;
+                    PlaySound(pickupSound, 0.8f);
                 }
                 else
                 {
                     shield--;
                     screenShake = 0.3f;
+                    PlaySound(damageSound, 0.9f);
                     if (shield <= 0) gameOver = true;
                 }
+                enemyHealth.Remove(t);
                 ReturnToPool(isPickup ? spherePool : GetPoolForObject(t.gameObject), t.gameObject);
                 list.RemoveAt(i);
                 continue;
@@ -342,6 +360,7 @@ public class StarRunnerGame : MonoBehaviour
             Vector3.one * scale
         );
         hazards.Add(hazard);
+        enemyHealth[hazard] = 1 + Mathf.FloorToInt(level / 3f);
     }
 
     private void SpawnPickup()
@@ -368,11 +387,152 @@ public class StarRunnerGame : MonoBehaviour
         return mat;
     }
 
+    private void Fire()
+    {
+        if (fireCooldown > 0f || gameOver) return;
+        fireCooldown = Mathf.Max(0.12f, 0.3f - level * 0.012f);
+        var shot = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
+        shot.name = "Player Plasma";
+        shot.position = player.position + new Vector3(0f, 0.55f, 1.4f);
+        shot.localScale = new Vector3(0.2f, 0.2f, 0.7f);
+        shot.GetComponent<Renderer>().material = playerShotMaterial;
+        playerShots.Add(shot);
+        PlaySound(fireSound, 0.42f);
+    }
+
+    private void MoveProjectiles()
+    {
+        for (int i = playerShots.Count - 1; i >= 0; i--)
+        {
+            Transform shot = playerShots[i];
+            if (shot == null) { playerShots.RemoveAt(i); continue; }
+            shot.position += Vector3.forward * 38f * Time.deltaTime;
+            bool consumed = false;
+            for (int h = hazards.Count - 1; h >= 0; h--)
+            {
+                Transform enemy = hazards[h];
+                if (enemy == null || Vector3.Distance(shot.position, enemy.position) > 1.25f) continue;
+                int health = enemyHealth.TryGetValue(enemy, out int current) ? current - 1 : 0;
+                if (health <= 0)
+                {
+                    score += 180 + level * 20;
+                    SpawnBurst(enemy.position, hazardMaterial);
+                    PlaySound(explosionSound, 0.75f);
+                    enemyHealth.Remove(enemy);
+                    ReturnToPool(GetPoolForObject(enemy.gameObject), enemy.gameObject);
+                    hazards.RemoveAt(h);
+                }
+                else enemyHealth[enemy] = health;
+                Destroy(shot.gameObject);
+                playerShots.RemoveAt(i);
+                consumed = true;
+                break;
+            }
+            if (!consumed && shot.position.z > 82f)
+            {
+                Destroy(shot.gameObject);
+                playerShots.RemoveAt(i);
+            }
+        }
+
+        for (int i = enemyShots.Count - 1; i >= 0; i--)
+        {
+            Transform shot = enemyShots[i];
+            if (shot == null) { enemyShots.RemoveAt(i); continue; }
+            shot.position += Vector3.back * (18f + level) * Time.deltaTime;
+            if (Vector3.Distance(shot.position, player.position) < 1f)
+            {
+                shield--;
+                screenShake = 0.35f;
+                PlaySound(damageSound, 0.9f);
+                Destroy(shot.gameObject);
+                enemyShots.RemoveAt(i);
+                if (shield <= 0) gameOver = true;
+            }
+            else if (shot.position.z < -8f)
+            {
+                Destroy(shot.gameObject);
+                enemyShots.RemoveAt(i);
+            }
+        }
+    }
+
+    private void EnemyFire()
+    {
+        enemyFireTimer -= Time.deltaTime;
+        if (enemyFireTimer > 0f || hazards.Count == 0) return;
+        Transform enemy = hazards[Random.Range(0, hazards.Count)];
+        if (enemy != null && enemy.position.z > 8f && enemy.position.z < 48f)
+        {
+            var shot = GameObject.CreatePrimitive(PrimitiveType.Sphere).transform;
+            shot.name = "Enemy Plasma";
+            shot.position = enemy.position + Vector3.back;
+            shot.localScale = new Vector3(0.24f, 0.24f, 0.6f);
+            shot.GetComponent<Renderer>().material = enemyShotMaterial;
+            enemyShots.Add(shot);
+        }
+        enemyFireTimer = Mathf.Max(0.85f, 2.8f - level * 0.14f);
+    }
+
+    private void SpawnBurst(Vector3 position, Material material)
+    {
+        for (int i = 0; i < 7; i++)
+        {
+            var particle = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            particle.name = "Explosion Particle";
+            particle.transform.position = position;
+            particle.transform.localScale = Vector3.one * Random.Range(0.12f, 0.3f);
+            particle.GetComponent<Renderer>().material = material;
+            var burst = particle.AddComponent<StarRunnerBurst>();
+            burst.velocity = Random.onUnitSphere * Random.Range(2.5f, 6f);
+        }
+    }
+
+    private void BuildAudio()
+    {
+        audioSource = gameObject.AddComponent<AudioSource>();
+        audioSource.playOnAwake = false;
+        fireSound = CreateTone("Laser", 860f, 0.07f, false);
+        explosionSound = CreateTone("Explosion", 90f, 0.32f, true);
+        damageSound = CreateTone("Damage", 130f, 0.25f, true);
+        pickupSound = CreateTone("Pickup", 620f, 0.18f, false);
+    }
+
+    private AudioClip CreateTone(string clipName, float frequency, float duration, bool square)
+    {
+        const int sampleRate = 22050;
+        int count = Mathf.CeilToInt(sampleRate * duration);
+        var samples = new float[count];
+        for (int i = 0; i < count; i++)
+        {
+            float wave = Mathf.Sin(2f * Mathf.PI * frequency * i / sampleRate);
+            if (square) wave = wave >= 0f ? 0.7f : -0.7f;
+            samples[i] = wave * (1f - (float)i / count) * 0.32f;
+        }
+        var clip = AudioClip.Create(clipName, count, 1, sampleRate, false);
+        clip.SetData(samples, 0);
+        return clip;
+    }
+
+    private void PlaySound(AudioClip clip, float volume)
+    {
+        if (audioSource != null && clip != null) audioSource.PlayOneShot(clip, volume);
+    }
+
+    private void UpdateCameraLayout()
+    {
+        float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 1.6f;
+        cameraBasePosition = aspect < 0.85f ? new Vector3(0f, 8.8f, -12.8f) : new Vector3(0f, 6.8f, -10.5f);
+        mainCamera.fieldOfView = aspect < 0.85f ? 72f : 62f;
+        if (screenShake <= 0f) mainCamera.transform.position = cameraBasePosition;
+        mainCamera.transform.LookAt(new Vector3(0f, 0.35f, 14f));
+    }
+
     private void UpdateHud()
     {
         hudText = gameOver
             ? $"GAME OVER\nSCORE {score}\nR / ENTER PARA REINICIAR"
-            : $"UNITY STAR RUNNER\nSCORE {score}  SHIELD {shield}  LVL {level}\nA/D o Flechas para cambiar de carril";
+            : $"UNITY STAR RUNNER\nSCORE {score}  SHIELD {shield}  LVL {level}\nMOVER A/D · DISPARAR ESPACIO/X";
     }
 
     private void OnGUI()
@@ -388,5 +548,29 @@ public class StarRunnerGame : MonoBehaviour
             hudStyleFontSize = targetSize;
         }
         GUI.Label(new Rect(20f, 16f, Screen.width - 40f, 100f), hudText, hudStyle);
+
+        if (Input.touchSupported || Application.isMobilePlatform || Screen.width < 900)
+        {
+            float size = Mathf.Clamp(Mathf.Min(Screen.width, Screen.height) * 0.16f, 64f, 112f);
+            float y = Screen.height - size - 18f;
+            if (GUI.Button(new Rect(18f, y, size, size), "LEFT")) targetLane = Mathf.Max(-1, targetLane - 1);
+            if (GUI.Button(new Rect(30f + size, y, size, size), "RIGHT")) targetLane = Mathf.Min(1, targetLane + 1);
+            if (GUI.Button(new Rect(Screen.width - size - 22f, y - size * 0.15f, size, size), "FIRE")) Fire();
+        }
+    }
+}
+
+public class StarRunnerBurst : MonoBehaviour
+{
+    public Vector3 velocity;
+    private float life = 0.55f;
+
+    private void Update()
+    {
+        transform.position += velocity * Time.deltaTime;
+        velocity *= 0.92f;
+        life -= Time.deltaTime;
+        transform.localScale *= 0.93f;
+        if (life <= 0f) Destroy(gameObject);
     }
 }

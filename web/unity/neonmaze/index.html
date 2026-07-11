@@ -52,12 +52,13 @@
       }
 
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/neonmaze.loader.js";
+      var buildVersion = "20260711-1";
+      var loaderUrl = buildUrl + "/neonmaze.loader.js?v=" + buildVersion;
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/neonmaze.data",
-        frameworkUrl: buildUrl + "/neonmaze.framework.js",
-        codeUrl: buildUrl + "/neonmaze.wasm",
+        dataUrl: buildUrl + "/neonmaze.data?v=" + buildVersion,
+        frameworkUrl: buildUrl + "/neonmaze.framework.js?v=" + buildVersion,
+        codeUrl: buildUrl + "/neonmaze.wasm?v=" + buildVersion,
         streamingAssetsUrl: "StreamingAssets",
         companyName: "DefaultCompany",
         productName: "NeonMaze",

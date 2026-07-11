@@ -7,8 +7,8 @@ const GAMES = [
   { id: 'carreras', name: 'RACING', icon: '🏎️', color: '#ff3366', desc: 'Circuito neon con power-ups.' },
   { id: 'graveknight', name: 'GRAVE KNIGHT', icon: '🛡️', color: '#c8f7ff', desc: 'Arcade de cementerio: salta, lanza y sobrevive.' },
   { id: 'starfighter', name: 'STARFIGHTER 3D', icon: '🚀', color: '#00ffff', desc: 'Nave espacial con asteroides, escudo y jefe.' },
-  { id: 'unity-starrunner', name: 'UNITY STAR RUNNER', icon: '🛰️', color: '#7f5cff', desc: 'Juego Unity WebGL integrado en el arcade.', type: 'unity', url: 'unity/starrunner/index.html?v=20260710-2' },
-  { id: 'unity-neonmaze', name: 'UNITY NEON MAZE', icon: '🟡', color: '#ffd84d', desc: 'Comecocos 3D moderno con niveles y controles tactiles.', type: 'unity', url: 'unity/neonmaze/index.html?v=20260710-2' },
+  { id: 'unity-starrunner', name: 'UNITY STAR RUNNER', icon: '🛰️', color: '#7f5cff', desc: 'Runner 3D con disparos, enemigos y dificultad progresiva.', type: 'unity', url: 'unity/starrunner/index.html?v=20260711-1' },
+  { id: 'unity-neonmaze', name: 'UNITY NEON MAZE', icon: '🟡', color: '#ffd84d', desc: 'Comecocos 3D moderno con niveles y controles tactiles.', type: 'unity', url: 'unity/neonmaze/index.html?v=20260711-1' },
   { id: 'unity-zombiestoro', name: 'ZOMBIES TORO', icon: '🧟', color: '#66ff33', desc: 'Mata zombis por las calles de Toro (Zamora) con Google Street View.', type: 'unity', url: 'unity/zombiestoro/index.html?v=20260710' },
 ];
 

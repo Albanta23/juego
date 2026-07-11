@@ -34,6 +34,7 @@ public class NeonMazeGame : MonoBehaviour
     };
 
     private Transform player;
+    private Camera mazeCamera;
     private readonly List<Ghost> ghosts = new List<Ghost>();
     private readonly Dictionary<Vector2Int, GameObject> dots = new Dictionary<Vector2Int, GameObject>();
     private string hudText;
@@ -50,6 +51,9 @@ public class NeonMazeGame : MonoBehaviour
     private float startTimer;
     private bool gameOver;
     private bool paused;
+    private Vector2 touchStart;
+    private int lastScreenWidth;
+    private int lastScreenHeight;
     private AudioSource audioSource;
     private AudioClip dotSound;
     private AudioClip powerSound;
@@ -90,6 +94,7 @@ public class NeonMazeGame : MonoBehaviour
 
     private void Update()
     {
+        if (Screen.width != lastScreenWidth || Screen.height != lastScreenHeight) UpdateResponsiveCamera();
         if (Input.GetKeyDown(KeyCode.Escape))
         {
             paused = !paused;
@@ -125,18 +130,18 @@ public class NeonMazeGame : MonoBehaviour
 
     private void BuildScene()
     {
-        var camera = Camera.main;
-        if (camera == null)
+        mazeCamera = Camera.main;
+        if (mazeCamera == null)
         {
-            camera = new GameObject("Main Camera").AddComponent<Camera>();
-            camera.gameObject.AddComponent<AudioListener>();
-            camera.tag = "MainCamera";
+            mazeCamera = new GameObject("Main Camera").AddComponent<Camera>();
+            mazeCamera.gameObject.AddComponent<AudioListener>();
+            mazeCamera.tag = "MainCamera";
         }
-        camera.transform.position = new Vector3(0f, 17.5f, -13.5f);
-        camera.transform.rotation = Quaternion.Euler(52f, 0f, 0f);
-        camera.orthographic = true;
-        camera.orthographicSize = 11.7f;
-        camera.backgroundColor = new Color(0.012f, 0.018f, 0.055f);
+        mazeCamera.transform.position = new Vector3(0f, 17.5f, -13.5f);
+        mazeCamera.transform.rotation = Quaternion.Euler(52f, 0f, 0f);
+        mazeCamera.orthographic = true;
+        mazeCamera.backgroundColor = new Color(0.012f, 0.018f, 0.055f);
+        UpdateResponsiveCamera();
 
         var lightObject = new GameObject("Neon Key Light");
         var light = lightObject.AddComponent<Light>();
@@ -364,9 +369,10 @@ public class NeonMazeGame : MonoBehaviour
 
         if (Input.touchCount == 0) return;
         Touch touch = Input.GetTouch(0);
+        if (touch.phase == TouchPhase.Began) { touchStart = touch.position; return; }
         if (touch.phase != TouchPhase.Ended) return;
-        Vector2 delta = touch.position - touch.rawPosition + touch.deltaPosition;
-        if (delta.sqrMagnitude < 100f) return;
+        Vector2 delta = touch.position - touchStart;
+        if (delta.sqrMagnitude < 225f) return;
         if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y)) desiredDirection = delta.x > 0f ? Vector2Int.right : Vector2Int.left;
         else desiredDirection = delta.y > 0f ? Vector2Int.up : Vector2Int.down;
     }
@@ -452,6 +458,15 @@ public class NeonMazeGame : MonoBehaviour
         if (audioSource != null && clip != null) audioSource.PlayOneShot(clip, volume);
     }
 
+    private void UpdateResponsiveCamera()
+    {
+        if (mazeCamera == null) return;
+        lastScreenWidth = Screen.width;
+        lastScreenHeight = Screen.height;
+        float aspect = Screen.height > 0 ? (float)Screen.width / Screen.height : 1.6f;
+        mazeCamera.orthographicSize = aspect < 1f ? Mathf.Min(17f, 10.6f / Mathf.Max(0.55f, aspect)) : 11.7f;
+    }
+
     private void OnGUI()
     {
         int hudSize = Mathf.Clamp(Screen.width / 34, 18, 30);
@@ -474,15 +489,16 @@ public class NeonMazeGame : MonoBehaviour
             GUI.Label(new Rect(0f, Screen.height * 0.36f, Screen.width, 150f), msg, messageStyle);
         }
 
-        if (Screen.width < 900)
+        if (Input.touchSupported || Application.isMobilePlatform || Screen.width < 900)
         {
-            float size = Mathf.Clamp(Screen.width * 0.16f, 62f, 104f);
-            float x = Screen.width - size * 2.25f;
-            float y = Screen.height - size * 1.25f;
+            float size = Mathf.Clamp(Mathf.Min(Screen.width, Screen.height) * 0.15f, 60f, 108f);
+            float x = Screen.width - size * 2.25f - 12f;
+            float y = Screen.height - size * 1.22f - 10f;
             if (GUI.Button(new Rect(x, y, size, size), "LEFT")) SetDirection("left");
             if (GUI.Button(new Rect(x + size * 1.12f, y, size, size), "RIGHT")) SetDirection("right");
             if (GUI.Button(new Rect(x - size * 0.56f, y - size * 0.98f, size, size), "UP")) SetDirection("up");
             if (GUI.Button(new Rect(x + size * 0.56f, y - size * 0.98f, size, size), "DOWN")) SetDirection("down");
+            if (gameOver && GUI.Button(new Rect(16f, Screen.height - size - 18f, size * 1.35f, size), "RETRY")) RestartGame();
         }
     }
 
